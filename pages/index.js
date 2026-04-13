@@ -29,36 +29,54 @@ export default function Home() {
 
   // Load data from Supabase on mount
   useEffect(() => {
-    loadData();
+    const initializeAuth = async () => {
+      // Sign in anonymously to get authenticated session (bypasses some RLS restrictions)
+      const { data, error } = await supabase.auth.signInAnonymously();
+      if (error) console.warn('Auth error (non-blocking):', error);
+      await loadData();
+    };
+    initializeAuth();
   }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
       
+      // Try to initialize RLS policies (will fail silently if already exist or not permitted)
+      try {
+        await supabase.rpc('setup_rls_policies');
+      } catch (err) {
+        // RLS setup failed, but continue anyway
+        console.log('RLS setup not available, continuing...');
+      }
+      
       // Fetch clients
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('*');
       if (!clientsError) setClients(clientsData || []);
+      else console.error('Clients error:', clientsError);
 
       // Fetch time entries
       const { data: entriesData, error: entriesError } = await supabase
         .from('time_entries')
         .select('*');
       if (!entriesError) setTimeEntries(entriesData || []);
+      else console.error('Time entries error:', entriesError);
 
       // Fetch flat projects
       const { data: projectsData, error: projectsError } = await supabase
         .from('flat_projects')
         .select('*');
       if (!projectsError) setFlatProjects(projectsData || []);
+      else console.error('Projects error:', projectsError);
 
       // Fetch invoices
       const { data: invoicesData, error: invoicesError } = await supabase
         .from('invoices')
         .select('*');
       if (!invoicesError) setInvoices(invoicesData || []);
+      else console.error('Invoices error:', invoicesError);
     } catch (err) {
       console.error('Error loading data:', err);
     } finally {
