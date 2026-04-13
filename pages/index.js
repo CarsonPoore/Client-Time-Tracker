@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { LogOut, Users, Lock } from 'lucide-react';
-import { supabase } from './_app';
+import { getSupabaseClient } from './_app';
 
 const useLocalStorage = (key, initialValue) => {
   const [storedValue, setStoredValue] = useState(initialValue);
@@ -30,14 +30,12 @@ const useLocalStorage = (key, initialValue) => {
 
 export default function Dashboard() {
   const router = useRouter();
-  const [view, setView] = useState('dashboard');
   const [currentUser, setCurrentUser] = useState(null);
   const [agencyUsers, setAgencyUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAdminPanel, setShowAdminPanel] = useState(false);
 
-  // Admin form state
   const [newUserForm, setNewUserForm] = useState({
     email: '',
     username: '',
@@ -45,21 +43,24 @@ export default function Dashboard() {
     role: 'viewer',
   });
 
-  // Data state
   const [clients, setClients] = useLocalStorage('clients', []);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
-  // Load current user and agency data
   useEffect(() => {
     const initUser = async () => {
       try {
+        const supabase = getSupabaseClient();
+        if (!supabase) {
+          setError('Supabase not configured');
+          setLoading(false);
+          return;
+        }
+
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError || !session) {
           router.push('/login');
           return;
         }
 
-        // Get user profile with agency
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('*, agencies(name)')
@@ -73,7 +74,6 @@ export default function Dashboard() {
 
         setCurrentUser(userData);
 
-        // Load agency users if admin
         if (userData.role === 'admin') {
           const { data: users } = await supabase
             .from('users')
@@ -82,7 +82,6 @@ export default function Dashboard() {
           setAgencyUsers(users || []);
         }
 
-        // Load clients for this agency
         const { data: clientsData } = await supabase
           .from('clients')
           .select('*')
@@ -100,7 +99,8 @@ export default function Dashboard() {
   }, [router]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    const supabase = getSupabaseClient();
+    if (supabase) await supabase.auth.signOut();
     localStorage.clear();
     router.push('/login');
   };
@@ -113,7 +113,9 @@ export default function Dashboard() {
     }
 
     try {
-      // Sign up new user
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error('Supabase not initialized');
+
       const { data, error: signupError } = await supabase.auth.signUp({
         email: newUserForm.email,
         password: newUserForm.password,
@@ -121,7 +123,6 @@ export default function Dashboard() {
 
       if (signupError) throw signupError;
 
-      // Create user profile
       const { error: profileError } = await supabase
         .from('users')
         .insert([
@@ -136,14 +137,12 @@ export default function Dashboard() {
 
       if (profileError) throw profileError;
 
-      // Refresh user list
       const { data: users } = await supabase
         .from('users')
         .select('*')
         .eq('agency_id', currentUser.agency_id);
       setAgencyUsers(users || []);
 
-      // Clear form
       setNewUserForm({ email: '', username: '', password: '', role: 'viewer' });
       setError('');
     } catch (err) {
@@ -168,6 +167,9 @@ export default function Dashboard() {
     }
 
     try {
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error('Supabase not initialized');
+
       const newClient = {
         agency_id: currentUser.agency_id,
         name,
@@ -207,7 +209,6 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white font-sans">
-      {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div>
@@ -245,7 +246,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ADMIN PANEL */}
         {showAdminPanel && isAdmin && (
           <div className="bg-blue-900 border border-blue-700 p-6 rounded-lg mb-8">
             <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -253,7 +253,6 @@ export default function Dashboard() {
             </h2>
 
             <div className="grid grid-cols-2 gap-6">
-              {/* Add User Form */}
               <div className="bg-blue-800 p-4 rounded-lg">
                 <h3 className="font-bold mb-4">Add User</h3>
                 <form onSubmit={handleAddUser} className="space-y-3">
@@ -299,7 +298,6 @@ export default function Dashboard() {
                 </form>
               </div>
 
-              {/* Users List */}
               <div>
                 <h3 className="font-bold mb-4">Team Members</h3>
                 <div className="space-y-2 bg-blue-800 p-4 rounded-lg max-h-64 overflow-y-auto">
@@ -324,7 +322,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* MAIN CONTENT */}
         <div className="bg-slate-800 p-6 rounded-lg">
           <h2 className="text-xl font-bold mb-4">Clients</h2>
 

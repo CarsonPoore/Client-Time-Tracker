@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
-import { supabase } from './_app';
+import { getSupabaseClient } from './_app';
 
 export default function Login() {
   const router = useRouter();
-  const [mode, setMode] = useState('login'); // login or signup
+  const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -19,7 +19,9 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Sign in with email and password
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error('Supabase not initialized');
+
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -27,7 +29,6 @@ export default function Login() {
 
       if (authError) throw authError;
 
-      // Verify user profile exists
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id')
@@ -53,9 +54,11 @@ export default function Login() {
     setLoading(true);
 
     try {
+      const supabase = getSupabaseClient();
+      if (!supabase) throw new Error('Supabase not initialized');
+
       if (!agencyName || !username) throw new Error('Agency name and username required');
 
-      // 1. Create agency
       const { data: agencyData, error: agencyError } = await supabase
         .from('agencies')
         .insert([{ name: agencyName }])
@@ -64,7 +67,6 @@ export default function Login() {
 
       if (agencyError) throw agencyError;
 
-      // 2. Sign up auth user
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -72,7 +74,6 @@ export default function Login() {
 
       if (authError) throw authError;
 
-      // 3. Create user profile
       const { error: profileError } = await supabase
         .from('users')
         .insert([
