@@ -32,18 +32,16 @@ export default function Dashboard() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState(null);
   const [agencyUsers, setAgencyUsers] = useState([]);
+  const [clients, setClients] = useLocalStorage('clients', []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-
   const [newUserForm, setNewUserForm] = useState({
     email: '',
     username: '',
     password: '',
     role: 'viewer',
   });
-
-  const [clients, setClients] = useLocalStorage('clients', []);
 
   useEffect(() => {
     const initUser = async () => {
@@ -206,6 +204,7 @@ export default function Dashboard() {
   const isAdmin = currentUser.role === 'admin';
   const canEdit = currentUser.role !== 'viewer';
   const agencyName = currentUser.agencies?.name || 'Agency';
+  const roleColor = currentUser.role === 'admin' ? 'text-yellow-400' : currentUser.role === 'manager' ? 'text-blue-400' : 'text-slate-400';
 
   return (
     <div className="min-h-screen bg-slate-950 text-white font-sans">
@@ -215,7 +214,7 @@ export default function Dashboard() {
             <h1 className="text-2xl font-bold">Agency Tracker</h1>
             <p className="text-sm text-slate-400">
               {currentUser.username} • {agencyName} •{' '}
-              <span className={`font-semibold ${currentUser.role === 'admin' ? 'text-yellow-400' : currentUser.role === 'manager' ? 'text-blue-400' : 'text-slate-400'}`}>
+              <span className={`font-semibold ${roleColor}`}>
                 {currentUser.role.toUpperCase()}
               </span>
             </p>
