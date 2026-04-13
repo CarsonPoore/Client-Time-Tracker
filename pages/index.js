@@ -108,21 +108,24 @@ export default function Home() {
 
   const handleAddClient = async (e) => {
     e.preventDefault();
-    const name = e.target.clientName?.value;
-    const rate = parseFloat(e.target.hourlyRate?.value);
-    const budget = parseFloat(e.target.monthlyBudget?.value);
+    const formDataObj = new FormData(e.target);
+    const name = formDataObj.get('clientName');
+    const rate = parseFloat(formDataObj.get('hourlyRate'));
+    const budget = parseFloat(formDataObj.get('monthlyBudget')) || null;
 
     if (!name || !rate) return;
 
     try {
       const { data, error } = await supabase
         .from('clients')
-        .insert([{ name, hourly_rate: rate, monthly_budget: budget || null }])
+        .insert([{ name, hourly_rate: rate, monthly_budget: budget }])
         .select();
 
       if (!error && data) {
         setClients([...clients, ...data]);
         e.target.reset();
+      } else {
+        console.error('Error adding client:', error);
       }
     } catch (err) {
       console.error('Error adding client:', err);
@@ -151,6 +154,8 @@ export default function Home() {
       if (!error && data) {
         setTimeEntries([...timeEntries, ...data]);
         setFormData({ ...formData, startTime: '', endTime: '', workDescription: '' });
+      } else {
+        console.error('Error adding time entry:', error);
       }
     } catch (err) {
       console.error('Error adding time entry:', err);
@@ -159,9 +164,10 @@ export default function Home() {
 
   const handleAddProject = async (e) => {
     e.preventDefault();
-    const clientId = e.target.projectClient?.value;
-    const projectName = e.target.projectName?.value;
-    const flatRate = parseFloat(e.target.flatRate?.value);
+    const formDataObj = new FormData(e.target);
+    const clientId = formDataObj.get('projectClient');
+    const projectName = formDataObj.get('projectName');
+    const flatRate = parseFloat(formDataObj.get('flatRate'));
 
     if (!clientId || !projectName || !flatRate) return;
 
@@ -179,6 +185,8 @@ export default function Home() {
       if (!error && data) {
         setFlatProjects([...flatProjects, ...data]);
         e.target.reset();
+      } else {
+        console.error('Error adding project:', error);
       }
     } catch (err) {
       console.error('Error adding project:', err);
@@ -241,6 +249,8 @@ export default function Home() {
 
         if (!error && data) {
           setInvoices([...invoices, ...data]);
+        } else {
+          console.error('Error creating invoices:', error);
         }
       }
     } catch (err) {
