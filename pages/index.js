@@ -7,16 +7,44 @@ const SUPABASE_ANON_KEY = 'sb_publishable_3vIOU3JXjXJIjpx-7GLRYA_2qmKCHCf';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const useLocalStorage = (key, initialValue) => {
+  const [storedValue, setStoredValue] = useState(initialValue);
+
+  useEffect(() => {
+    try {
+      const item = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+      if (item) setStoredValue(JSON.parse(item));
+    } catch (error) {
+      console.warn('localStorage read error:', error);
+    }
+  }, [key]);
+
+  const setValue = (value) => {
+    try {
+      const valueToStore = value instanceof Function ? value(storedValue) : value;
+      setStoredValue(valueToStore);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      }
+    } catch (error) {
+      console.warn('localStorage write error:', error);
+    }
+  };
+
+  return [storedValue, setValue];
+};
+
 export default function Home() {
   const [view, setView] = useState('dashboard');
   const [currentUser] = useState({ id: '1', name: 'Carson', role: 'owner' });
   const [isOwner] = useState(currentUser.role === 'owner');
   const [loading, setLoading] = useState(true);
+  const [useLocalStorageFallback, setUseLocalStorageFallback] = useState(false);
 
-  const [clients, setClients] = useState([]);
-  const [timeEntries, setTimeEntries] = useState([]);
-  const [flatProjects, setFlatProjects] = useState([]);
-  const [invoices, setInvoices] = useState([]);
+  const [clients, setClients] = useLocalStorage('clients', []);
+  const [timeEntries, setTimeEntries] = useLocalStorage('timeEntries', []);
+  const [flatProjects, setFlatProjects] = useLocalStorage('flatProjects', []);
+  const [invoices, setInvoices] = useLocalStorage('invoices', []);
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [formData, setFormData] = useState({
@@ -30,10 +58,15 @@ export default function Home() {
   // Load data from Supabase on mount
   useEffect(() => {
     const initializeAuth = async () => {
-      // Sign in anonymously to get authenticated session (bypasses some RLS restrictions)
-      const { data, error } = await supabase.auth.signInAnonymously();
-      if (error) console.warn('Auth error (non-blocking):', error);
-      await loadData();
+      try {
+        const { data, error } = await supabase.auth.signInAnonymously();
+        if (error) console.warn('Auth error:', error);
+        await loadData();
+      } catch (err) {
+        console.error('Initialization error:', err);
+        setUseLocalStorageFallback(true);
+        setLoading(false);
+      }
     };
     initializeAuth();
   }, []);
@@ -41,47 +74,194 @@ export default function Home() {
   const loadData = async () => {
     try {
       setLoading(true);
-      
-      // Try to initialize RLS policies (will fail silently if already exist or not permitted)
-      try {
-        await supabase.rpc('setup_rls_policies');
-      } catch (err) {
-        // RLS setup failed, but continue anyway
-        console.log('RLS setup not available, continuing...');
-      }
-      
-      // Fetch clients
+      let hasErrors = false;
+
+      // Try to fetch from Supabase
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
         .select('*');
-      if (!clientsError) setClients(clientsData || []);
-      else console.error('Clients error:', clientsError);
+      if (!clientsError && clientsData) setClients(clientsData);
+      else hasErrors = true;
 
-      // Fetch time entries
       const { data: entriesData, error: entriesError } = await supabase
         .from('time_entries')
         .select('*');
-      if (!entriesError) setTimeEntries(entriesData || []);
-      else console.error('Time entries error:', entriesError);
+      if (!entriesError && entriesData) setTimeEntries(entriesData);
+      else hasErrors = true;
 
-      // Fetch flat projects
       const { data: projectsData, error: projectsError } = await supabase
         .from('flat_projects')
         .select('*');
-      if (!projectsError) setFlatProjects(projectsData || []);
-      else console.error('Projects error:', projectsError);
+      if (!projectsError && projectsData) setFlatProjects(projectsData);
+      else hasErrors = true;
 
-      // Fetch invoices
       const { data: invoicesData, error: invoicesError } = await supabase
         .from('invoices')
         .select('*');
-      if (!invoicesError) setInvoices(invoicesData || []);
-      else console.error('Invoices error:', invoicesError);
+      if (!invoicesError && invoicesData) setInvoices(invoicesData);
+      else hasErrors = true;
+
+      if (hasErrors) {
+        console.warn('Some Supabase queries failed - using localStorage fallback');
+        setUseLocalStorageFallback(true);
+      }
     } catch (err) {
       console.error('Error loading data:', err);
+      setUseLocalStorageFallback(true);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAddClient = async (e) => {
+    e.preventDefault();
+    const formDataObj = new FormData(e.target);
+    const name = formDataObj.get('clientName');
+    const rate = parseFloat(formDataObj.get('hourlyRate'));
+    const budget = parseFloat(formDataObj.get('monthlyBudget')) || null;
+
+    if (!name || !rate) return;
+
+    const newClient = {
+      id: Date.now().toString(),
+      name,
+      hourly_rate: rate,
+      monthly_budget: budget,
+      created_at: new Date().toISOString(),
+    };
+
+    // Try Supabase first
+    const { error } = await supabase.from('clients').insert([newClient]).select();
+    
+    // Fallback to localStorage
+    if (error) {
+      setUseLocalStorageFallback(true);
+      setClients([...clients, newClient]);
+    } else {
+      setClients([...clients, newClient]);
+    }
+
+    e.target.reset();
+  };
+
+  const handleTimeEntry = async (e) => {
+    e.preventDefault();
+    if (!formData.clientId || !formData.startTime || !formData.endTime) return;
+
+    const newEntry = {
+      id: Date.now().toString(),
+      client_id: formData.clientId,
+      employee_id: formData.employeeId,
+      start_time: formData.startTime,
+      end_time: formData.endTime,
+      work_description: formData.workDescription,
+      created_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('time_entries').insert([newEntry]).select();
+    
+    if (error) {
+      setUseLocalStorageFallback(true);
+      setTimeEntries([...timeEntries, newEntry]);
+    } else {
+      setTimeEntries([...timeEntries, newEntry]);
+    }
+
+    setFormData({ ...formData, startTime: '', endTime: '', workDescription: '' });
+  };
+
+  const handleAddProject = async (e) => {
+    e.preventDefault();
+    const formDataObj = new FormData(e.target);
+    const clientId = formDataObj.get('projectClient');
+    const projectName = formDataObj.get('projectName');
+    const flatRate = parseFloat(formDataObj.get('flatRate'));
+
+    if (!clientId || !projectName || !flatRate) return;
+
+    const newProject = {
+      id: Date.now().toString(),
+      client_id: clientId,
+      project_name: projectName,
+      flat_rate: flatRate,
+      status: 'quoted',
+      created_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('flat_projects').insert([newProject]).select();
+    
+    if (error) {
+      setUseLocalStorageFallback(true);
+      setFlatProjects([...flatProjects, newProject]);
+    } else {
+      setFlatProjects([...flatProjects, newProject]);
+    }
+
+    e.target.reset();
+  };
+
+  const updateProjectStatus = async (projectId, newStatus) => {
+    const { error } = await supabase
+      .from('flat_projects')
+      .update({ status: newStatus })
+      .eq('id', projectId);
+
+    if (error) setUseLocalStorageFallback(true);
+    
+    setFlatProjects(flatProjects.map(p => 
+      p.id === projectId ? { ...p, status: newStatus } : p
+    ));
+  };
+
+  const handleCreateInvoice = async (e) => {
+    e.preventDefault();
+    const month = selectedMonth;
+    const monthInvoices = [];
+
+    for (const client of clients) {
+      const entries = timeEntries.filter(ent => {
+        const entryMonth = new Date(ent.start_time).toISOString().slice(0, 7);
+        return entryMonth === month && ent.client_id === client.id;
+      });
+
+      const totalHours = entries.reduce((sum, ent) => {
+        const start = new Date(ent.start_time);
+        const end = new Date(ent.end_time);
+        return sum + (end - start) / (1000 * 60 * 60);
+      }, 0);
+
+      const totalAmount = totalHours * client.hourly_rate;
+
+      if (totalHours > 0) {
+        monthInvoices.push({
+          id: Date.now().toString() + Math.random(),
+          client_id: client.id,
+          month,
+          total_hours: totalHours,
+          total_amount: totalAmount,
+          status: 'outstanding',
+        });
+      }
+    }
+
+    if (monthInvoices.length > 0) {
+      const { error } = await supabase.from('invoices').insert(monthInvoices).select();
+      if (error) setUseLocalStorageFallback(true);
+      setInvoices([...invoices, ...monthInvoices]);
+    }
+  };
+
+  const updateInvoiceStatus = async (invoiceId, newStatus) => {
+    const { error } = await supabase
+      .from('invoices')
+      .update({ status: newStatus })
+      .eq('id', invoiceId);
+
+    if (error) setUseLocalStorageFallback(true);
+    
+    setInvoices(invoices.map(inv =>
+      inv.id === invoiceId ? { ...inv, status: newStatus } : inv
+    ));
   };
 
   const calculateDashboard = () => {
@@ -122,175 +302,6 @@ export default function Home() {
     const prev = parseInt(m) - 1;
     if (prev === 0) return `${parseInt(year) - 1}-12`;
     return `${year}-${String(prev).padStart(2, '0')}`;
-  };
-
-  const handleAddClient = async (e) => {
-    e.preventDefault();
-    const formDataObj = new FormData(e.target);
-    const name = formDataObj.get('clientName');
-    const rate = parseFloat(formDataObj.get('hourlyRate'));
-    const budget = parseFloat(formDataObj.get('monthlyBudget')) || null;
-
-    if (!name || !rate) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('clients')
-        .insert([{ name, hourly_rate: rate, monthly_budget: budget }])
-        .select();
-
-      if (!error && data) {
-        setClients([...clients, ...data]);
-        e.target.reset();
-      } else {
-        console.error('Error adding client:', error);
-      }
-    } catch (err) {
-      console.error('Error adding client:', err);
-    }
-  };
-
-  const handleTimeEntry = async (e) => {
-    e.preventDefault();
-    if (!formData.clientId || !formData.startTime || !formData.endTime) return;
-
-    const start = new Date(formData.startTime);
-    const end = new Date(formData.endTime);
-
-    try {
-      const { data, error } = await supabase
-        .from('time_entries')
-        .insert([{
-          client_id: formData.clientId,
-          employee_id: formData.employeeId,
-          start_time: formData.startTime,
-          end_time: formData.endTime,
-          work_description: formData.workDescription,
-        }])
-        .select();
-
-      if (!error && data) {
-        setTimeEntries([...timeEntries, ...data]);
-        setFormData({ ...formData, startTime: '', endTime: '', workDescription: '' });
-      } else {
-        console.error('Error adding time entry:', error);
-      }
-    } catch (err) {
-      console.error('Error adding time entry:', err);
-    }
-  };
-
-  const handleAddProject = async (e) => {
-    e.preventDefault();
-    const formDataObj = new FormData(e.target);
-    const clientId = formDataObj.get('projectClient');
-    const projectName = formDataObj.get('projectName');
-    const flatRate = parseFloat(formDataObj.get('flatRate'));
-
-    if (!clientId || !projectName || !flatRate) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('flat_projects')
-        .insert([{
-          client_id: clientId,
-          project_name: projectName,
-          flat_rate: flatRate,
-          status: 'quoted',
-        }])
-        .select();
-
-      if (!error && data) {
-        setFlatProjects([...flatProjects, ...data]);
-        e.target.reset();
-      } else {
-        console.error('Error adding project:', error);
-      }
-    } catch (err) {
-      console.error('Error adding project:', err);
-    }
-  };
-
-  const updateProjectStatus = async (projectId, newStatus) => {
-    try {
-      const { error } = await supabase
-        .from('flat_projects')
-        .update({ status: newStatus })
-        .eq('id', projectId);
-
-      if (!error) {
-        setFlatProjects(flatProjects.map(p => 
-          p.id === projectId ? { ...p, status: newStatus } : p
-        ));
-      }
-    } catch (err) {
-      console.error('Error updating project:', err);
-    }
-  };
-
-  const handleCreateInvoice = async (e) => {
-    e.preventDefault();
-    const month = selectedMonth;
-    
-    try {
-      const monthInvoices = [];
-      for (const client of clients) {
-        const entries = timeEntries.filter(ent => {
-          const entryMonth = new Date(ent.start_time).toISOString().slice(0, 7);
-          return entryMonth === month && ent.client_id === client.id;
-        });
-
-        const totalHours = entries.reduce((sum, ent) => {
-          const start = new Date(ent.start_time);
-          const end = new Date(ent.end_time);
-          return sum + (end - start) / (1000 * 60 * 60);
-        }, 0);
-
-        const totalAmount = totalHours * client.hourly_rate;
-
-        if (totalHours > 0) {
-          monthInvoices.push({
-            client_id: client.id,
-            month,
-            total_hours: totalHours,
-            total_amount: totalAmount,
-            status: 'outstanding',
-          });
-        }
-      }
-
-      if (monthInvoices.length > 0) {
-        const { data, error } = await supabase
-          .from('invoices')
-          .insert(monthInvoices)
-          .select();
-
-        if (!error && data) {
-          setInvoices([...invoices, ...data]);
-        } else {
-          console.error('Error creating invoices:', error);
-        }
-      }
-    } catch (err) {
-      console.error('Error creating invoices:', err);
-    }
-  };
-
-  const updateInvoiceStatus = async (invoiceId, newStatus) => {
-    try {
-      const { error } = await supabase
-        .from('invoices')
-        .update({ status: newStatus })
-        .eq('id', invoiceId);
-
-      if (!error) {
-        setInvoices(invoices.map(inv =>
-          inv.id === invoiceId ? { ...inv, status: newStatus } : inv
-        ));
-      }
-    } catch (err) {
-      console.error('Error updating invoice:', err);
-    }
   };
 
   const exportPDF = (clientId) => {
@@ -341,6 +352,7 @@ export default function Home() {
           <div>
             <h1 className="text-2xl font-bold">Agency Tracker</h1>
             <p className="text-sm text-slate-400">{currentUser.name} • {selectedMonth}</p>
+            {useLocalStorageFallback && <p className="text-xs text-yellow-400">⚠ Using local storage</p>}
           </div>
           <nav className="flex gap-2">
             {['dashboard', 'time-entry', 'clients', 'projects', 'invoices'].map(tab => (
