@@ -20,6 +20,7 @@
   --ok: #157347;
   --warn: #9a6400;
   --danger: #b42318;
+  --focus: #1e4fd8;
   color-scheme: light;
 }
 
@@ -34,6 +35,7 @@
     --ok: #5fd39a;
     --warn: #e0a030;
     --danger: #ff8a7a;
+    --focus: #8fb0ff;
     color-scheme: dark;
   }
 }
@@ -48,6 +50,7 @@
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
+  --color-focus: var(--focus);
 }
 
 body {
@@ -56,6 +59,6 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-royal);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
