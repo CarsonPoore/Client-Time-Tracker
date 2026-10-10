@@ -168,3 +168,65 @@ describe("rls", () => {
     expect(r.rows).toEqual([]);
   });
 });
+
+const rpc = <T>(user: string | null, sql: string, args: unknown[]) =>
+  asUser(db, user, (tx) => tx.query<T>(sql, args)).then((r) => r.rows[0]);
+
+describe("publish_version / decide_version", () => {
+  it("non-admin cannot publish", async () => {
+    await expect(rpc(ALICE, "select * from publish_version($1, null, 'https://x', null)", [D_FEEDBACK])).rejects.toThrow(/forbidden/);
+  });
+
+  it("publishing after changes requested creates v2 awaiting and moves the pointer", async () => {
+    const v2 = await rpc<{ number: number; status: string; id: string }>(ADMIN,
+      "select * from publish_version($1, $2, null, 'Bluer now')", [D_FEEDBACK, `${SITE}/deliverables/v2.png`]);
+    expect(v2).toMatchObject({ number: 2, status: "awaiting_approval" });
+    const d = await db.query<{ status: string; current_version_id: string }>("select status, current_version_id from deliverables where id = $1", [D_FEEDBACK]);
+    expect(d.rows[0]).toEqual({ status: "awaiting_approval", current_version_id: v2.id });
+    expect(await versionsOf(ALICE, D_FEEDBACK)).toEqual([1, 2]);
+  });
+
+  it("publishing a draft deliverable promotes v1 in place", async () => {
+    await db.query("update deliverable_versions set file_path = $2 where deliverable_id = $1", [D_DRAFT, `${SITE}/deliverables/d.png`]);
+    const v = await rpc<{ number: number; status: string; file_path: string }>(ADMIN, "select * from publish_version($1, null, null, null)", [D_DRAFT]);
+    expect(v).toMatchObject({ number: 1, status: "awaiting_approval", file_path: `${SITE}/deliverables/d.png` });
+  });
+
+  it("publishing without file or link on a non-draft fails", async () => {
+    await expect(rpc(ADMIN, "select * from publish_version($1, null, null, null)", [D_APPROVED])).rejects.toThrow(/file_required/);
+  });
+
+  it("client cannot decide an old version", async () => {
+    const v1 = (await db.query<{ id: string }>("select id from deliverable_versions where deliverable_id = $1 and number = 1", [D_FEEDBACK])).rows[0].id;
+    await expect(rpc(ALICE, "select * from decide_version($1, 'approved', null)", [v1])).rejects.toThrow(/not_current_version/);
+  });
+
+  it("other client gets not_found", async () => {
+    await expect(rpc(BOB, "select * from decide_version($1, 'approved', null)", [await currentVersion(D_FEEDBACK)])).rejects.toThrow(/not_found/);
+  });
+
+  it("changes_requested needs a note and writes a decision comment", async () => {
+    const v = await currentVersion(D_FEEDBACK);
+    await expect(rpc(ALICE, "select * from decide_version($1, 'changes_requested', '  ')", [v])).rejects.toThrow(/feedback_required/);
+    await expect(rpc(ALICE, "select * from decide_version($1, 'draft', null)", [v])).rejects.toThrow(/invalid_decision/);
+    const r = await rpc<{ status: string; decided_by: string }>(ALICE, "select * from decide_version($1, 'changes_requested', 'Still too dark')", [v]);
+    expect(r).toMatchObject({ status: "changes_requested", decided_by: ALICE });
+    const c = await db.query("select body, kind, author_role from deliverable_comments where version_id = $1 and kind = 'decision'", [v]);
+    expect(c.rows).toEqual([{ body: "Still too dark", kind: "decision", author_role: "client" }]);
+    await expect(rpc(ALICE, "select * from decide_version($1, 'approved', null)", [v])).rejects.toThrow(/not_awaiting_approval/);
+  });
+
+  it("approve with optional note; mirror updates deliverable", async () => {
+    const v3 = await rpc<{ id: string; number: number }>(ADMIN, "select * from publish_version($1, null, 'https://x/v3', null)", [D_FEEDBACK]);
+    expect(v3.number).toBe(3);
+    await rpc(ALICE, "select * from decide_version($1, 'approved', null)", [v3.id]);
+    const d = await db.query<{ status: string }>("select status from deliverables where id = $1", [D_FEEDBACK]);
+    expect(d.rows[0].status).toBe("approved");
+  });
+
+  it("legacy decide_deliverable delegates to the current version", async () => {
+    await rpc(ALICE, "select * from decide_deliverable($1, 'approved', null)", [D_LINK]);
+    const v = await db.query<{ status: string }>("select status from deliverable_versions where id = $1", [await currentVersion(D_LINK)]);
+    expect(v.rows[0].status).toBe("approved");
+  });
+});

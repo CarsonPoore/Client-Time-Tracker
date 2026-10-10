@@ -38,6 +38,9 @@ beforeAll(async () => {
       ('${DEL_AWAIT}', '${PROJ_A}', 'Homepage', 'awaiting_approval'),
       ('${DEL_DRAFT}', '${PROJ_A}', 'Draft', 'draft'),
       ('${DEL_B}', '${PROJ_B}', 'B logo', 'awaiting_approval');
+    insert into deliverable_versions (deliverable_id, number, link_url, status, published_at)
+      select id, 1, 'https://x', status, case when status = 'draft' then null else now() end from deliverables;
+    update deliverables d set current_version_id = v.id from deliverable_versions v where v.deliverable_id = d.id;
     insert into updates (project_id, body) values ('${PROJ_A}', 'A update'), ('${PROJ_B}', 'B update');
     insert into updates (project_id, body, published_at) values ('${PROJ_A}', 'Unpublished', null);
     insert into sync_runs (kind, ok) values ('manual', true);

@@ -163,3 +163,127 @@ grant select, insert, update, delete on public.deliverable_versions, public.deli
   public.comment_attachments, public.client_activity to authenticated;
 revoke all on public.deliverable_versions, public.deliverable_comments,
   public.comment_attachments, public.client_activity from anon;
+
+alter table public.deliverables drop constraint changes_need_feedback;
+
+-- RPCs
+create function public.decide_version(
+  p_version_id uuid, p_decision public.deliverable_status, p_note text
+) returns public.deliverable_versions
+language plpgsql security definer set search_path = public as $$
+declare
+  v public.deliverable_versions;
+  cur uuid;
+  note text := nullif(btrim(coalesce(p_note, '')), '');
+begin
+  select * into v from public.deliverable_versions where id = p_version_id for update;
+  if not found or public.version_client_id(v.id) is distinct from public.auth_client_id() then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  select current_version_id into cur from public.deliverables where id = v.deliverable_id;
+  if cur is distinct from v.id then
+    raise exception 'not_current_version' using errcode = 'P0001';
+  end if;
+  if v.status <> 'awaiting_approval' then
+    raise exception 'not_awaiting_approval' using errcode = 'P0001';
+  end if;
+  if p_decision not in ('approved', 'changes_requested') then
+    raise exception 'invalid_decision' using errcode = 'P0001';
+  end if;
+  if p_decision = 'changes_requested' and note is null then
+    raise exception 'feedback_required' using errcode = 'P0001';
+  end if;
+  if note is not null and length(note) > 5000 then
+    raise exception 'feedback_too_long' using errcode = 'P0001';
+  end if;
+
+  update public.deliverable_versions
+     set status = p_decision, decided_at = now(), decided_by = auth.uid()
+   where id = v.id
+  returning * into v;
+
+  if note is not null then
+    insert into public.deliverable_comments (version_id, author_id, author_role, body, kind)
+    values (v.id, auth.uid(), 'client', note, 'decision');
+  end if;
+  return v;
+end $$;
+
+create function public.publish_version(
+  p_deliverable_id uuid, p_file_path text, p_link_url text, p_notes text
+) returns public.deliverable_versions
+language plpgsql security definer set search_path = public as $$
+declare
+  d public.deliverables;
+  cur public.deliverable_versions;
+  v public.deliverable_versions;
+begin
+  if not public.is_admin() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  select * into d from public.deliverables where id = p_deliverable_id for update;
+  if not found then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  select * into cur from public.deliverable_versions where id = d.current_version_id;
+
+  if cur.id is not null and cur.status = 'draft' then
+    update public.deliverable_versions
+       set file_path = coalesce(p_file_path, file_path),
+           link_url = coalesce(p_link_url, link_url),
+           notes = coalesce(nullif(btrim(coalesce(p_notes, '')), ''), notes),
+           status = 'awaiting_approval', published_at = now()
+     where id = cur.id
+    returning * into v;
+  else
+    if p_file_path is null and p_link_url is null then
+      raise exception 'file_required' using errcode = 'P0001';
+    end if;
+    insert into public.deliverable_versions
+      (deliverable_id, number, file_path, link_url, notes, status, published_at, created_by)
+    values (d.id,
+            coalesce((select max(number) from public.deliverable_versions where deliverable_id = d.id), 0) + 1,
+            p_file_path, p_link_url, nullif(btrim(coalesce(p_notes, '')), ''),
+            'awaiting_approval', now(), auth.uid())
+    returning * into v;
+  end if;
+
+  if v.file_path is null and v.link_url is null then
+    raise exception 'file_required' using errcode = 'P0001';
+  end if;
+
+  update public.deliverables
+     set current_version_id = v.id, status = v.status, published_at = coalesce(published_at, v.published_at)
+   where id = d.id;
+  return v;
+end $$;
+
+drop function public.decide_deliverable(uuid, public.deliverable_status, text);
+create function public.decide_deliverable(
+  p_id uuid, p_decision public.deliverable_status, p_feedback text
+) returns public.deliverables
+language plpgsql security definer set search_path = public as $$
+declare
+  d public.deliverables;
+  v public.deliverable_versions;
+begin
+  select * into d from public.deliverables where id = p_id;
+  if not found or d.current_version_id is null then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  select * into v from public.decide_version(d.current_version_id, p_decision, p_feedback);
+  -- keep legacy decision columns in sync for existing readers of deliverables
+  update public.deliverables
+     set decided_at = v.decided_at, decided_by = v.decided_by,
+         client_feedback = nullif(btrim(coalesce(p_feedback, '')), '')
+   where id = p_id
+  returning * into d;
+  return d;
+end $$;
+
+revoke all on function public.decide_version(uuid, public.deliverable_status, text) from public, anon;
+grant execute on function public.decide_version(uuid, public.deliverable_status, text) to authenticated;
+revoke all on function public.publish_version(uuid, text, text, text) from public, anon;
+grant execute on function public.publish_version(uuid, text, text, text) to authenticated;
+revoke all on function public.decide_deliverable(uuid, public.deliverable_status, text) from public, anon;
+grant execute on function public.decide_deliverable(uuid, public.deliverable_status, text) to authenticated;
