@@ -9,9 +9,3 @@ export function parseDecision(form: FormData): { ok: true; decision: Decision; f
   return { ok: true, decision, feedback: raw || null };
 }
 
-export function decisionErrorMessage(message: string): string {
-  if (message.includes("not_awaiting_approval")) return "This deliverable has already been decided.";
-  if (message.includes("feedback_required")) return "Tell us what to change.";
-  if (message.includes("not_found")) return "We couldn't find that deliverable.";
-  return "Something went wrong. Please try again.";
-}

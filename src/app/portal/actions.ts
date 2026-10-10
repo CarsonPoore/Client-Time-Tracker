@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireClient } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { notifyAdminDecision, notifyAdminRequest, postDecisionToClickUp } from "@/lib/email/notify";
-import { decisionErrorMessage, parseDecision } from "./decision";
+import { parseDecision } from "./decision";
 import { COMMENT_PROJECT_SELECT, commentProjectId, isCommentPath, parseComment, validateAttachment, versionErrorMessage } from "@/lib/revisions";
 import { buildStoragePath, createSignedUpload, removeObject } from "@/lib/storage";
 

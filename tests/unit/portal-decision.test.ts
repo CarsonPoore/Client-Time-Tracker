@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decisionErrorMessage, parseDecision } from "@/app/portal/decision";
+import { parseDecision } from "@/app/portal/decision";
 
 const fd = (o: Record<string, string>) => { const f = new FormData(); Object.entries(o).forEach(([k, v]) => f.set(k, v)); return f; };
 
@@ -15,9 +15,3 @@ describe("parseDecision", () => {
   });
 });
 
-describe("decisionErrorMessage", () => {
-  it("maps database errors to friendly text", () => {
-    expect(decisionErrorMessage("not_awaiting_approval")).toMatch(/already/);
-    expect(decisionErrorMessage("whatever")).toMatch(/try again/i);
-  });
-});
