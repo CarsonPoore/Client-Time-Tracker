@@ -91,6 +91,7 @@ describe("reconcileAll", () => {
     const counts = await reconcileAll(cu, store);
     expect(counts.errors).toBe(1);
     expect(counts.projects).toBe(1);
+    expect(counts.errorMessages).toEqual(["space BAD: boom"]);
   });
 });
 
@@ -122,6 +123,20 @@ describe("syncTask", () => {
     await store.upsertTasks([{ project_id: "p", clickup_task_id: "t1", name: "x", status: "open", status_color: null, due_date: null, client_visible: true, clickup_url: null, clickup_updated_at: null, deleted: false }]);
     await syncTask(fakeCu({ lists: {}, tasks: {} }), store, "t1");
     expect(tasks.get("t1")?.deleted).toBe(true);
+  });
+});
+
+describe("syncTaskComments", () => {
+  it("imports nothing for a task whose list is not in a client space", async () => {
+    const { store, updates } = fakeStore([{ clientId: "C1", spaceId: "S1" }]);
+    await store.upsertProject({ client_id: "C1", clickup_list_id: "LX", name: "Old", status: null, due_date: null, archived: false });
+    const cu = fakeCu({
+      lists: { CPC: [{ id: "LX", name: "Old" }] },
+      tasks: { LX: [mkTask("t1", "LX", "CPC")] },
+      comments: { t1: [{ id: "c1", comment_text: "#client Leak", date: "1" }] },
+    });
+    await handleEvent(cu, store, { event: "taskCommentPosted", webhook_id: "w", task_id: "t1" });
+    expect(updates.size).toBe(0);
   });
 });
 

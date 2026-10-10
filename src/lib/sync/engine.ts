@@ -16,7 +16,7 @@ export interface SyncStore {
   insertClickUpUpdates(rows: { project_id: string; clickup_comment_id: string; body: string; author_name: string | null; published_at: string }[]): Promise<number>;
 }
 
-export interface SyncCounts { projects: number; tasks: number; updates: number; errors: number }
+export interface SyncCounts { projects: number; tasks: number; updates: number; errors: number; errorMessages: string[] }
 
 const isNotFound = (e: unknown) => typeof e === "object" && e !== null && (e as { status?: number }).status === 404;
 
@@ -26,7 +26,11 @@ function msToIso(ms: string): string {
 }
 
 export async function syncTaskComments(cu: ClickUpApi, store: SyncStore, taskId: string, projectId?: string): Promise<number> {
-  const pid = projectId ?? (await store.getProjectIdByList((await cu.getTask(taskId)).list.id));
+  let pid = projectId;
+  if (!pid) {
+    const task = await cu.getTask(taskId);
+    pid = (await projectForList(cu, store, task.list.id, task.space?.id)) ?? undefined;
+  }
   if (!pid) return 0;
   const comments = await cu.getTaskComments(taskId);
   const rows = comments.flatMap((c) => {
@@ -39,7 +43,7 @@ export async function syncTaskComments(cu: ClickUpApi, store: SyncStore, taskId:
 }
 
 export async function reconcileAll(cu: ClickUpApi, store: SyncStore, opts: { commentsSince?: Date } = {}): Promise<SyncCounts> {
-  const counts: SyncCounts = { projects: 0, tasks: 0, updates: 0, errors: 0 };
+  const counts: SyncCounts = { projects: 0, tasks: 0, updates: 0, errors: 0, errorMessages: [] };
   for (const { clientId, spaceId } of await store.getClientSpaces()) {
     try {
       const lists = await cu.getListsInSpace(spaceId);
@@ -60,6 +64,7 @@ export async function reconcileAll(cu: ClickUpApi, store: SyncStore, opts: { com
       await store.archiveProjectsExcept(clientId, lists.map((l) => l.id));
     } catch (err) {
       counts.errors++;
+      counts.errorMessages.push(`space ${spaceId}: ${err instanceof Error ? err.message : String(err)}`);
       console.error(`Reconcile failed for space ${spaceId}`, err);
     }
   }
