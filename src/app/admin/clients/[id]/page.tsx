@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card, EmptyState, PageHeader, formatDate } from "@/components/ui";
+import { Card, EmptyState, LinkButton, PageHeader, formatDate } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -23,7 +23,8 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
 
   return (
     <>
-      <PageHeader eyebrow="Client" title={client.name} />
+      <PageHeader eyebrow="Client" title={client.name}
+        actions={<LinkButton variant="secondary" href={`/admin/clients/${client.id}/preview`}>Preview portal</LinkButton>} />
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Card>
           <h2 className="mb-4 text-lg font-bold">Projects</h2>

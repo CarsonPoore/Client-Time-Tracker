@@ -1,14 +1,15 @@
 "use client";
 import { useActionState, useState } from "react";
 import { Button, Field, FormMessage, Textarea } from "@/components/ui";
-import { decideDeliverable, type PortalResult } from "../../actions";
+import { decideDeliverable, type PortalResult } from "@/app/portal/actions";
 
-export function DecisionForm({ deliverableId }: { deliverableId: string }) {
+export function DecisionForm({ deliverableId, preview = false }: { deliverableId: string; preview?: boolean }) {
   const [state, action, pending] = useActionState<PortalResult, FormData>(decideDeliverable.bind(null, deliverableId), { error: null });
   const [mode, setMode] = useState<"approve" | "changes">("approve");
   if (state.message) return <FormMessage success={state.message} />;
   return (
-    <form action={action} className="space-y-4">
+    <form action={preview ? undefined : action} className="space-y-4">
+      <fieldset disabled={preview} className="space-y-4">
       <p className="font-bold">Ready for your review</p>
       {mode === "changes" ? (
         <Field label="What should change?" htmlFor="feedback">
@@ -31,6 +32,8 @@ export function DecisionForm({ deliverableId }: { deliverableId: string }) {
           </>
         )}
       </div>
+      </fieldset>
+      {preview ? <p className="text-xs text-muted">Disabled in preview.</p> : null}
     </form>
   );
 }
