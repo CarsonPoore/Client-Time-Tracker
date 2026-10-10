@@ -224,6 +224,16 @@ describe("publish_version / decide_version", () => {
     expect(d.rows[0].status).toBe("approved");
   });
 
+  it("admin cannot decide a version", async () => {
+    await expect(rpc(ADMIN, "select * from decide_version($1, 'approved', null)", [await currentVersion(D_LINK)])).rejects.toThrow(/not_found/);
+  });
+
+  it("rejects an over-long note", async () => {
+    const v = (await db.query<{ id: string }>("select id from deliverable_versions where deliverable_id = $1 and status = 'awaiting_approval' limit 1", [D_LINK])).rows[0]?.id ?? await currentVersion(D_LINK);
+    await db.query("update deliverable_versions set status = 'awaiting_approval' where id = $1", [v]);
+    await expect(rpc(ALICE, "select * from decide_version($1, 'changes_requested', $2)", [v, "x".repeat(5001)])).rejects.toThrow(/feedback_too_long/);
+  });
+
   it("legacy decide_deliverable delegates to the current version", async () => {
     await rpc(ALICE, "select * from decide_deliverable($1, 'approved', null)", [D_LINK]);
     const v = await db.query<{ status: string }>("select status from deliverable_versions where id = $1", [await currentVersion(D_LINK)]);

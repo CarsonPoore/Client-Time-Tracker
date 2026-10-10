@@ -174,13 +174,22 @@ language plpgsql security definer set search_path = public as $$
 declare
   v public.deliverable_versions;
   cur uuid;
+  did uuid;
   note text := nullif(btrim(coalesce(p_note, '')), '');
 begin
+  if public.auth_client_id() is null then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  select deliverable_id into did from public.deliverable_versions where id = p_version_id;
+  if not found then
+    raise exception 'not_found' using errcode = 'P0002';
+  end if;
+  -- lock order matches publish_version: deliverable, then version
+  select current_version_id into cur from public.deliverables where id = did for update;
   select * into v from public.deliverable_versions where id = p_version_id for update;
   if not found or public.version_client_id(v.id) is distinct from public.auth_client_id() then
     raise exception 'not_found' using errcode = 'P0002';
   end if;
-  select current_version_id into cur from public.deliverables where id = v.deliverable_id;
   if cur is distinct from v.id then
     raise exception 'not_current_version' using errcode = 'P0001';
   end if;
