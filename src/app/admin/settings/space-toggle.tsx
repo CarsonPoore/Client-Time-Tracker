@@ -3,12 +3,12 @@ import { useState, useTransition } from "react";
 import { Button, FormMessage } from "@/components/ui";
 import { setSpaceIsClient, type ActionResult } from "../actions";
 
-export function SpaceToggle({ spaceId, name, checked }: { spaceId: string; name: string; checked: boolean }) {
+export function SpaceToggle({ spaceId, name, checked, isNew = false }: { spaceId: string; name: string; checked: boolean; isNew?: boolean }) {
   const [value, setValue] = useState(checked);
   const [pending, start] = useTransition();
   return (
     <label className="flex items-center justify-between gap-4">
-      <span className="font-semibold">{name}</span>
+      <span className="font-semibold">{name}{isNew ? <span className="ml-2 rounded bg-line px-1.5 py-0.5 text-xs font-semibold text-muted">New</span> : null}</span>
       <input type="checkbox" className="size-5 accent-royal" checked={value} disabled={pending}
         onChange={(e) => { const next = e.target.checked; setValue(next); start(async () => { const r = await setSpaceIsClient(spaceId, name, next); if (r.error) setValue(!next); }); }} />
     </label>

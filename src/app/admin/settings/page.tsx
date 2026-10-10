@@ -25,6 +25,7 @@ export default async function SettingsPage() {
     clickupError = "Couldn't reach ClickUp. Check the API token.";
   }
   const state = new Map((clients ?? []).map((c) => [c.clickup_space_id as string, c.is_active as boolean]));
+  const hasNewDefaults = spaces.some((s) => !state.has(s.id) && isDefaultClientSpace(s.name));
   const now = Date.now();
 
   return (
@@ -42,17 +43,16 @@ export default async function SettingsPage() {
         <Card>
           <h2 className="text-lg font-bold">Which spaces are clients?</h2>
           {clickupError ? <p className="mt-2 text-sm text-danger">{clickupError}</p> : null}
-          {state.size === 0 && spaces.length ? (
-            <div className="mt-4"><ActionButton action={importSpaces} label="Import client spaces" /></div>
-          ) : (
-            <ul className="mt-4 divide-y divide-line">
-              {spaces.map((s) => (
-                <li key={s.id} className="py-2">
-                  <SpaceToggle spaceId={s.id} name={s.name} checked={state.get(s.id) ?? (state.size === 0 && isDefaultClientSpace(s.name))} />
-                </li>
-              ))}
-            </ul>
-          )}
+          {hasNewDefaults ? (
+            <div className="mt-4"><ActionButton action={importSpaces} label="Add new client spaces" /></div>
+          ) : null}
+          <ul className="mt-4 divide-y divide-line">
+            {spaces.map((s) => (
+              <li key={s.id} className="py-2">
+                <SpaceToggle spaceId={s.id} name={s.name} checked={state.get(s.id) ?? false} isNew={!state.has(s.id)} />
+              </li>
+            ))}
+          </ul>
         </Card>
         <Card className="lg:col-span-2">
           <h2 className="mb-4 text-lg font-bold">Sync history</h2>
