@@ -1,13 +1,15 @@
 import type { ClickUpClient } from "@/lib/clickup/client";
 import { mapList, mapTask, parseClientComment, type ProjectInput, type TaskInput } from "@/lib/clickup/mapping";
-import type { CUWebhookPayload } from "@/lib/clickup/types";
+import type { CUList, CUWebhookPayload } from "@/lib/clickup/types";
 
 export type ClickUpApi = Pick<ClickUpClient, "getListsInSpace" | "getList" | "getTasks" | "getTask" | "getTaskComments">;
 
 export interface SyncStore {
   getClientSpaces(): Promise<{ clientId: string; spaceId: string }[]>;
   upsertProject(p: ProjectInput): Promise<string>;
-  getProjectIdByList(listId: string): Promise<string | null>;
+  getProjectByList(listId: string): Promise<{ id: string; clientId: string } | null>;
+  /** Archive a project and clear its clickup_list_id so the list can be re-created for another client. */
+  detachProject(projectId: string): Promise<void>;
   upsertTasks(rows: TaskInput[]): Promise<void>;
   markTasksDeletedExcept(projectId: string, keepClickupIds: string[]): Promise<void>;
   markTaskDeleted(clickupTaskId: string): Promise<void>;
@@ -23,6 +25,12 @@ const isNotFound = (e: unknown) => typeof e === "object" && e !== null && (e as 
 function msToIso(ms: string): string {
   const n = Number(ms);
   return Number.isFinite(n) ? new Date(n).toISOString() : new Date().toISOString();
+}
+
+async function upsertListProject(store: SyncStore, list: CUList, clientId: string): Promise<string> {
+  const existing = await store.getProjectByList(list.id);
+  if (existing && existing.clientId !== clientId) await store.detachProject(existing.id);
+  return store.upsertProject(mapList(list, clientId));
 }
 
 export async function syncTaskComments(cu: ClickUpApi, store: SyncStore, taskId: string, projectId?: string): Promise<number> {
@@ -48,7 +56,7 @@ export async function reconcileAll(cu: ClickUpApi, store: SyncStore, opts: { com
     try {
       const lists = await cu.getListsInSpace(spaceId);
       for (const list of lists) {
-        const projectId = await store.upsertProject(mapList(list, clientId));
+        const projectId = await upsertListProject(store, list, clientId);
         counts.projects++;
         const tasks = await cu.getTasks(list.id);
         await store.upsertTasks(tasks.map((t) => mapTask(t, projectId)));
@@ -72,7 +80,7 @@ export async function reconcileAll(cu: ClickUpApi, store: SyncStore, opts: { com
 }
 
 async function projectForList(cu: ClickUpApi, store: SyncStore, listId: string, spaceId?: string): Promise<string | null> {
-  const existing = await store.getProjectIdByList(listId);
+  const existing = await store.getProjectByList(listId);
   const spaces = await store.getClientSpaces();
   const list = await cu.getList(listId);
   const space = spaceId ?? list.space?.id;
@@ -81,7 +89,7 @@ async function projectForList(cu: ClickUpApi, store: SyncStore, listId: string, 
     if (existing) await store.archiveProjectByList(listId);
     return null;
   }
-  return store.upsertProject(mapList(list, client.clientId));
+  return upsertListProject(store, list, client.clientId);
 }
 
 export async function syncTask(cu: ClickUpApi, store: SyncStore, taskId: string): Promise<void> {

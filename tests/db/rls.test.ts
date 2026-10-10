@@ -177,6 +177,14 @@ describe("decide_deliverable", () => {
 });
 
 describe("task status tracking", () => {
+  it("leaves status_changed_at null on insert and sets it on a real status change", async () => {
+    await db.exec(`insert into tasks (project_id, clickup_task_id, name, status, client_visible) values ('${PROJ_A}', 'fresh', 'Fresh', 'open', true)`);
+    let r = await db.query<{ status_changed_at: Date | null }>("select status_changed_at from tasks where clickup_task_id = 'fresh'");
+    expect(r.rows[0].status_changed_at).toBeNull();
+    await db.exec("update tasks set status = 'done' where clickup_task_id = 'fresh'");
+    r = await db.query<{ status_changed_at: Date | null }>("select status_changed_at from tasks where clickup_task_id = 'fresh'");
+    expect(r.rows[0].status_changed_at).not.toBeNull();
+  });
   it("bumps status_changed_at only when status changes", async () => {
     await db.exec("update tasks set status_changed_at = '2020-01-01' where clickup_task_id = 't1'");
     await db.exec("update tasks set name = 'Visible!' where clickup_task_id = 't1'");

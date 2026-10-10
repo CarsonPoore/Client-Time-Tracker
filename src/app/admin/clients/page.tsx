@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PORTAL_STATUS_LABEL, portalStatus } from "../portal-status";
@@ -7,6 +8,7 @@ import { PORTAL_STATUS_LABEL, portalStatus } from "../portal-status";
 export const metadata = { title: "Clients" };
 
 export default async function ClientsPage() {
+  await requireAdmin();
   const supabase = await createClient();
   const { data: clients } = await supabase
     .from("clients").select("id, name, is_active, portal_user_id, projects(count)")

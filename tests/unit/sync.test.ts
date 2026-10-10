@@ -7,14 +7,23 @@ function fakeStore(spaces: { clientId: string; spaceId: string }[]) {
   const projects = new Map<string, ProjectInput & { id: string }>();
   const tasks = new Map<string, TaskInput>();
   const updates = new Map<string, string>();
+  const detached: (ProjectInput & { id: string })[] = [];
   const store: SyncStore = {
     getClientSpaces: async () => spaces,
     upsertProject: async (p) => {
-      const id = projects.get(p.clickup_list_id)?.id ?? `proj-${p.clickup_list_id}`;
+      const id = projects.get(p.clickup_list_id)?.id ?? (detached.some((d) => d.id === `proj-${p.clickup_list_id}`) ? `proj-${p.clickup_list_id}-new` : `proj-${p.clickup_list_id}`);
       projects.set(p.clickup_list_id, { ...p, id });
       return id;
     },
-    getProjectIdByList: async (listId) => projects.get(listId)?.id ?? null,
+    getProjectByList: async (listId) => {
+      const p = projects.get(listId);
+      return p ? { id: p.id, clientId: p.client_id } : null;
+    },
+    detachProject: async (projectId) => {
+      for (const [listId, p] of projects) {
+        if (p.id === projectId) { projects.delete(listId); detached.push({ ...p, archived: true, clickup_list_id: null as unknown as string }); }
+      }
+    },
     upsertTasks: async (rows) => rows.forEach((r) => tasks.set(r.clickup_task_id, r)),
     markTasksDeletedExcept: async (projectId, keep) => {
       for (const t of tasks.values()) if (t.project_id === projectId && !keep.includes(t.clickup_task_id)) t.deleted = true;
@@ -30,7 +39,7 @@ function fakeStore(spaces: { clientId: string; spaceId: string }[]) {
       return n;
     },
   };
-  return { store, projects, tasks, updates };
+  return { store, projects, tasks, updates, detached };
 }
 
 const mkTask = (id: string, listId: string, spaceId: string, visible = true, updated = Date.now()): CUTask => ({
@@ -123,6 +132,32 @@ describe("syncTask", () => {
     await store.upsertTasks([{ project_id: "p", clickup_task_id: "t1", name: "x", status: "open", status_color: null, due_date: null, client_visible: true, clickup_url: null, clickup_updated_at: null, deleted: false }]);
     await syncTask(fakeCu({ lists: {}, tasks: {} }), store, "t1");
     expect(tasks.get("t1")?.deleted).toBe(true);
+  });
+});
+
+describe("list moved between client spaces", () => {
+  it("archives and detaches the old project and creates a fresh one for the new client", async () => {
+    const { store, projects, tasks, detached } = fakeStore([{ clientId: "C1", spaceId: "S1" }, { clientId: "C2", spaceId: "S2" }]);
+    await store.upsertProject({ client_id: "C1", clickup_list_id: "L1", name: "W", status: null, due_date: null, archived: false });
+    const oldId = projects.get("L1")!.id;
+    // L1 now lives in C2's space
+    const cu = fakeCu({ lists: { S2: [{ id: "L1", name: "W" }] }, tasks: { L1: [mkTask("t1", "L1", "S2")] } });
+    await syncTask(cu, store, "t1");
+    expect(detached).toHaveLength(1);
+    expect(detached[0]).toMatchObject({ id: oldId, client_id: "C1", archived: true, clickup_list_id: null });
+    const fresh = projects.get("L1")!;
+    expect(fresh.client_id).toBe("C2");
+    expect(fresh.id).not.toBe(oldId);
+    expect(tasks.get("t1")?.project_id).toBe(fresh.id);
+  });
+
+  it("reconcileAll does the same", async () => {
+    const { store, projects, detached } = fakeStore([{ clientId: "C1", spaceId: "S1" }, { clientId: "C2", spaceId: "S2" }]);
+    await store.upsertProject({ client_id: "C1", clickup_list_id: "L1", name: "W", status: null, due_date: null, archived: false });
+    const cu = fakeCu({ lists: { S1: [], S2: [{ id: "L1", name: "W" }] }, tasks: { L1: [] } });
+    await reconcileAll(cu, store);
+    expect(detached).toHaveLength(1);
+    expect(projects.get("L1")?.client_id).toBe("C2");
   });
 });
 

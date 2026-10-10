@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, EmptyState, PageHeader, StatusPill, formatDate } from "@/components/ui";
+import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { DeliverableRow, FileRow, RequestRow, TaskRow, UpdateRow } from "@/lib/types";
 import { DeliverableCard, NewDeliverableForm, ProjectFiles, RequestRowActions, UpdateForm, DeleteUpdateButton } from "./forms";
 
 export default async function AdminProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdmin();
   const { id } = await params;
   const supabase = await createClient();
   const { data: project } = await supabase.from("projects").select("*, client:clients(id, name)").eq("id", id).maybeSingle();

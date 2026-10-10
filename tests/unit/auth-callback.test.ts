@@ -19,9 +19,9 @@ describe("resolveCallback", () => {
   it("allows an existing allowlisted admin", () => {
     expect(resolveCallback({ ...base, profile: { role: "admin" } })).toEqual({ kind: "allow", role: "admin" });
   });
-  it("denies an admin removed from the allowlist without deleting", () => {
+  it("denies an admin removed from the allowlist and revokes their profile (keeps the auth user)", () => {
     expect(resolveCallback({ ...base, profile: { role: "admin" }, email: "eve@example.com" }))
-      .toEqual({ kind: "deny", deleteUser: false });
+      .toEqual({ kind: "deny", deleteUser: false, deleteProfile: true });
   });
   it("denies existing client and team profiles without deleting", () => {
     expect(resolveCallback({ ...base, profile: { role: "client" } })).toEqual({ kind: "deny", deleteUser: false });

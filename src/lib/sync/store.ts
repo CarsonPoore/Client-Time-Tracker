@@ -17,9 +17,12 @@ export function supabaseSyncStore(db: SupabaseClient): SyncStore {
       const row = check(await db.from("projects").upsert(p, { onConflict: "clickup_list_id" }).select("id").single());
       return (row as { id: string }).id;
     },
-    async getProjectIdByList(listId) {
-      const row = check(await db.from("projects").select("id").eq("clickup_list_id", listId).maybeSingle());
-      return (row?.id as string | undefined) ?? null;
+    async getProjectByList(listId) {
+      const row = check(await db.from("projects").select("id, client_id").eq("clickup_list_id", listId).maybeSingle());
+      return row ? { id: row.id as string, clientId: row.client_id as string } : null;
+    },
+    async detachProject(projectId) {
+      check(await db.from("projects").update({ archived: true, clickup_list_id: null }).eq("id", projectId));
     },
     async upsertTasks(rows) {
       for (let i = 0; i < rows.length; i += 500) {

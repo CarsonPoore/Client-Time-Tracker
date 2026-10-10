@@ -118,8 +118,12 @@ export async function importSpaces(): Promise<ActionResult> {
 export async function setSpaceIsClient(spaceId: string, name: string, isClient: boolean): Promise<ActionResult> {
   await requireAdmin();
   const db = createAdminClient();
-  const { error } = await db.from("clients")
-    .upsert({ clickup_space_id: spaceId, name, is_active: isClient }, { onConflict: "clickup_space_id" });
+  // Only insert (with the ClickUp space name) when no row exists, so admin-edited names survive toggles.
+  const { data: existing, error: lookupError } = await db.from("clients").select("id").eq("clickup_space_id", spaceId).maybeSingle();
+  if (lookupError) return { error: "Couldn't update that space." };
+  const { error } = existing
+    ? await db.from("clients").update({ is_active: isClient }).eq("clickup_space_id", spaceId)
+    : await db.from("clients").insert({ clickup_space_id: spaceId, name, is_active: isClient });
   if (error) return { error: "Couldn't update that space." };
   revalidatePath("/admin/settings");
   return { error: null };

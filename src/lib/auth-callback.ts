@@ -4,7 +4,7 @@ import type { Role } from "@/lib/types";
 export type CallbackDecision =
   | { kind: "create_admin" }
   | { kind: "allow"; role: "admin" }
-  | { kind: "deny"; deleteUser: boolean };
+  | { kind: "deny"; deleteUser: boolean; deleteProfile?: boolean };
 
 export function resolveCallback(input: {
   profile: { role: Role } | null;
@@ -18,6 +18,7 @@ export function resolveCallback(input: {
   const allowed = isAdminEmail(email, allowlist);
   if (profile) {
     if (profile.role === "admin" && allowed) return { kind: "allow", role: "admin" };
+    if (profile.role === "admin") return { kind: "deny", deleteUser: false, deleteProfile: true };
     return { kind: "deny", deleteUser: false };
   }
   if (provider === "google") {

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, EmptyState, PageHeader, formatDate } from "@/components/ui";
+import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ClientForm, InviteButton } from "./client-forms";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdmin();
   const { id } = await params;
   const supabase = await createClient();
   const { data: client } = await supabase.from("clients").select("*").eq("id", id).maybeSingle();

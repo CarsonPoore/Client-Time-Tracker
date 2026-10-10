@@ -33,6 +33,10 @@ export async function GET(request: NextRequest) {
 
   if (decision.kind === "deny") {
     await supabase.auth.signOut();
+    if (decision.deleteProfile) {
+      const { error: profError } = await admin.from("profiles").delete().eq("user_id", user.id);
+      if (profError) console.error("callback: profile delete failed", profError.message);
+    }
     if (decision.deleteUser) {
       const { error: delError } = await admin.auth.admin.deleteUser(user.id);
       if (delError) console.error("callback: deleteUser failed", delError.message);

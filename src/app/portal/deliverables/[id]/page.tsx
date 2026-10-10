@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, PageHeader, StatusPill, formatDate } from "@/components/ui";
+import { requireClient } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { signedDownloadUrl } from "@/lib/storage";
 import type { DeliverableRow } from "@/lib/types";
 import { DecisionForm } from "./decision-form";
 
 export default async function PortalDeliverable({ params }: { params: Promise<{ id: string }> }) {
+  await requireClient();
   const { id } = await params;
   const supabase = await createClient();
   // Inner join: RLS limits projects to non-archived ones, so deliverables of archived projects 404.

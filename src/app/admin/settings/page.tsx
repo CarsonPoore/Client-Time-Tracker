@@ -1,4 +1,5 @@
 import { Card, EmptyState, PageHeader } from "@/components/ui";
+import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { getSyncDeps, getWebhookSettings } from "@/lib/sync/factory";
 import { serverEnv } from "@/lib/env";
@@ -11,6 +12,7 @@ export const metadata = { title: "Settings" };
 const STALE_RUN_MS = 10 * 60_000;
 
 export default async function SettingsPage() {
+  await requireAdmin();
   const supabase = await createClient();
   const [{ data: clients }, { data: runs }, webhook] = await Promise.all([
     supabase.from("clients").select("clickup_space_id, is_active").not("clickup_space_id", "is", null),

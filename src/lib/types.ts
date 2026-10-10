@@ -13,7 +13,7 @@ export interface ProjectRow {
 export interface TaskRow {
   id: string; project_id: string; clickup_task_id: string; name: string; status: string;
   status_color: string | null; due_date: string | null; client_visible: boolean;
-  clickup_url: string | null; status_changed_at: string; deleted: boolean;
+  clickup_url: string | null; status_changed_at: string | null; deleted: boolean;
 }
 export interface DeliverableRow {
   id: string; project_id: string; title: string; description: string | null;

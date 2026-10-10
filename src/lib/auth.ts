@@ -1,6 +1,8 @@
 import "server-only";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { serverEnv } from "@/lib/env";
 import type { Role } from "@/lib/types";
 
@@ -29,7 +31,7 @@ export function safeNext(next: string | null): string | null {
   return next;
 }
 
-export async function getViewer(): Promise<Viewer | null> {
+export const getViewer = cache(async (): Promise<Viewer | null> => {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -46,13 +48,31 @@ export async function getViewer(): Promise<Viewer | null> {
     clientId: profile.client_id,
     fullName: profile.full_name,
   };
+});
+
+/** An admin dropped from ADMIN_EMAILS loses DB access: delete their profile (service role) and end the session. */
+async function revokeAdmin(userId: string): Promise<void> {
+  try {
+    const { error } = await createAdminClient().from("profiles").delete().eq("user_id", userId);
+    if (error) console.error("requireAdmin: profile delete failed", error.message);
+  } catch (e) {
+    console.error("requireAdmin: profile delete failed", e);
+  }
+  try {
+    await (await createClient()).auth.signOut();
+  } catch (e) {
+    console.error("requireAdmin: signOut failed", e);
+  }
 }
 
 export async function requireAdmin(): Promise<Viewer> {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
   if (viewer.role !== "admin") redirect(homeForRole(viewer.role));
-  if (!isAdminEmail(viewer.email, serverEnv().ADMIN_EMAILS)) redirect("/login?error=no_access");
+  if (!isAdminEmail(viewer.email, serverEnv().ADMIN_EMAILS)) {
+    await revokeAdmin(viewer.userId);
+    redirect("/login?error=no_access");
+  }
   return viewer;
 }
 

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { Card, EmptyState, PageHeader, StatusPill, formatDate } from "@/components/ui";
+import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Dashboard" };
 
 export default async function AdminDashboard() {
+  await requireAdmin();
   const supabase = await createClient();
   const [awaiting, decided, requests, lastRun] = await Promise.all([
     supabase.from("deliverables").select("id, title, published_at, project:projects(id, name, client:clients(name))")

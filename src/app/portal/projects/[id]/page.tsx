@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, EmptyState, PageHeader, StatusPill, formatDate } from "@/components/ui";
+import { requireClient } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { DeliverableRow, FileRow, TaskRow, UpdateRow } from "@/lib/types";
 import { RequestForm } from "./request-form";
 
 export default async function PortalProject({ params }: { params: Promise<{ id: string }> }) {
+  await requireClient();
   const { id } = await params;
   const supabase = await createClient();
   const { data: project } = await supabase.from("projects").select("id, name, status, due_date").eq("id", id).maybeSingle();
