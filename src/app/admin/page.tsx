@@ -2,13 +2,15 @@ import Link from "next/link";
 import { Card, EmptyState, PageHeader, StatusPill, formatDate } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { formatHours, formatMonth, hoursByClient, monthRange } from "@/lib/time";
 
 export const metadata = { title: "Dashboard" };
 
 export default async function AdminDashboard() {
   await requireAdmin();
   const supabase = await createClient();
-  const [awaiting, decided, requests, lastRun] = await Promise.all([
+  const { month, start, end } = monthRange(undefined);
+  const [awaiting, decided, requests, lastRun, time] = await Promise.all([
     supabase.from("deliverables").select("id, title, published_at, project:projects(id, name, client:clients(name))")
       .eq("status", "awaiting_approval").order("published_at", { ascending: true }),
     supabase.from("deliverables").select("id, title, status, decided_at, client_feedback, project:projects(id, name, client:clients(name))")
@@ -16,7 +18,10 @@ export default async function AdminDashboard() {
     supabase.from("requests").select("id, kind, body, created_at, project_id, client:clients(id, name)")
       .eq("status", "open").order("created_at", { ascending: false }),
     supabase.from("sync_runs").select("*").order("started_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("time_entries").select("minutes, clients(id, name)").gte("work_date", start).lte("work_date", end),
   ]);
+  const one = <T,>(v: T | T[] | null) => (Array.isArray(v) ? v[0] : v) ?? null;
+  const thisMonth = hoursByClient((time.data ?? []).map((e) => ({ minutes: e.minutes, client: one(e.clients)!, project: null })));
   const run = lastRun.data;
   const stale = Boolean(run && !run.finished_at && Date.now() - new Date(run.started_at).getTime() > 10 * 60_000);
   const syncLabel = !run ? "Not run yet" : run.ok ? "Healthy" : run.finished_at || stale ? "Needs attention" : "Running";
@@ -64,6 +69,18 @@ export default async function AdminDashboard() {
           </Card>
         </div>
         <div className="space-y-6">
+          <Card>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted">This month · {formatMonth(month)}</p>
+            <p className="mt-2 text-3xl font-black tabular-nums">{formatHours(thisMonth.total)} h</p>
+            {thisMonth.clients.length ? (
+              <ol className="mt-3 space-y-1 text-sm">
+                {thisMonth.clients.slice(0, 3).map((c) => (
+                  <li key={c.id} className="flex justify-between gap-4"><span className="truncate">{c.name}</span><span className="tabular-nums text-muted">{formatHours(c.minutes)}</span></li>
+                ))}
+              </ol>
+            ) : <p className="mt-1 text-sm text-muted">No time logged yet.</p>}
+            <Link href={`/admin/reports/hours?month=${month}`} className="mt-4 inline-block text-sm font-semibold text-link">Hours report</Link>
+          </Card>
           <Card className="bg-navy text-offwhite border-navy">
             <p className="text-xs font-semibold uppercase tracking-widest text-offwhite/60">ClickUp sync</p>
             <p className="mt-2 text-2xl font-black">

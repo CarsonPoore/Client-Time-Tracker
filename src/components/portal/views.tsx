@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, EmptyState, LinkButton, PageHeader, StatusPill, formatDate } from "@/components/ui";
-import type { PortalDeliverable, loadPortalHome, loadPortalProject } from "@/lib/portal-data";
+import type { PortalDeliverable, PortalHours, loadPortalHome, loadPortalProject } from "@/lib/portal-data";
+import { formatHours } from "@/lib/time";
 import { DecisionForm } from "./decision-form";
 import { RequestForm } from "./request-form";
 
@@ -19,7 +20,7 @@ export function PreviewBanner({ clientName, clientId }: { clientName: string; cl
   );
 }
 
-export function PortalHomeView({ data, mode }: { data: Awaited<ReturnType<typeof loadPortalHome>>; mode: PortalViewMode }) {
+export function PortalHomeView({ data, mode, hours = null }: { data: Awaited<ReturnType<typeof loadPortalHome>>; mode: PortalViewMode; hours?: PortalHours | null }) {
   const { client, projects, awaiting, updates } = data;
   const awaitingByProject = new Map<string, number>();
   awaiting.forEach((d) => awaitingByProject.set(d.project_id, (awaitingByProject.get(d.project_id) ?? 0) + 1));
@@ -65,6 +66,23 @@ export function PortalHomeView({ data, mode }: { data: Awaited<ReturnType<typeof
             </div>
           ) : <EmptyState title="No active projects" body="Your projects will appear here once work begins." />}
         </section>
+        <div className="space-y-6">
+        {hours ? (
+          <section aria-labelledby="hours-h">
+            <Card>
+              <h2 id="hours-h" className="mb-3 text-lg font-bold">Hours this month</h2>
+              <ul className="divide-y divide-line text-sm">
+                {hours.rows.map((r) => (
+                  <li key={r.project_id ?? "other"} className="flex justify-between gap-4 py-2">
+                    <span className={r.project_id ? "" : "text-muted"}>{r.label}</span>
+                    <span className="tabular-nums">{formatHours(r.minutes)}</span>
+                  </li>
+                ))}
+                <li className="flex justify-between gap-4 py-2 font-bold"><span>Total</span><span className="tabular-nums">{formatHours(hours.total)}</span></li>
+              </ul>
+            </Card>
+          </section>
+        ) : null}
         <section aria-labelledby="updates-h">
           <h2 id="updates-h" className="mb-4 text-lg font-bold">Latest updates</h2>
           {updates.length ? (
@@ -80,6 +98,7 @@ export function PortalHomeView({ data, mode }: { data: Awaited<ReturnType<typeof
             </ul>
           ) : <EmptyState title="No updates yet" />}
         </section>
+        </div>
       </div>
     </>
   );

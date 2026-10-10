@@ -81,7 +81,7 @@ export function PageHeader({ eyebrow, title, actions }: { eyebrow?: string; titl
   );
 }
 
-export function EmptyState({ title, body }: { title: string; body?: string }) {
+export function EmptyState({ title, body }: { title: string; body?: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-dashed border-line p-8 text-center">
       <p className="font-semibold">{title}</p>

@@ -4,7 +4,7 @@ export type DeliverableStatus = "draft" | "awaiting_approval" | "approved" | "ch
 export interface ClientRow {
   id: string; name: string; clickup_space_id: string | null; is_active: boolean;
   contact_name: string | null; contact_email: string | null; quickbooks_invoices_url: string | null;
-  quickbooks_customer_id: string | null; quickbooks_customer_name: string | null;
+  quickbooks_customer_id: string | null; quickbooks_customer_name: string | null; show_hours_in_portal: boolean;
   portal_user_id: string | null; created_at: string;
 }
 export interface ProjectRow {

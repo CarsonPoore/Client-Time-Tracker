@@ -9,7 +9,7 @@ import type { DeliverableRow, FileRow, TaskRow, UpdateRow } from "@/lib/types";
 
 // Minimal structural type so tests can pass a recording fake instead of a real Supabase client.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type PortalDb = { from: (table: string) => any };
+export type PortalDb = { from: (table: string) => any; rpc?: (fn: string, args: Record<string, unknown>) => any };
 
 type Result<T> = { data: T | null };
 
@@ -80,4 +80,18 @@ export async function loadPortalFilePath(db: PortalDb, clientId: string, id: str
   const { data } = (await db.from("files").select("storage_path, project_id").eq("id", id).maybeSingle()) as Result<{ storage_path: string; project_id: string }>;
   if (!data) return null;
   return (await ownProject(db, clientId, data.project_id)) ? data.storage_path : null;
+}
+
+export interface PortalHours { rows: { project_id: string | null; label: string; minutes: number }[]; total: number }
+
+/**
+ * Hours this month by project, or null when the client hasn't been opted in. portal_hours() enforces the
+ * toggle for client sessions; admins bypass it in SQL, so the toggle is checked here too for the preview.
+ */
+export async function loadPortalHours(db: PortalDb, clientId: string, monthStart: string): Promise<PortalHours | null> {
+  const { data: client } = (await db.from("clients").select("show_hours_in_portal").eq("id", clientId).maybeSingle()) as Result<{ show_hours_in_portal: boolean }>;
+  if (!client?.show_hours_in_portal || !db.rpc) return null;
+  const { data } = (await db.rpc("portal_hours", { p_client_id: clientId, p_month: monthStart })) as Result<PortalHours["rows"]>;
+  const rows = data ?? [];
+  return rows.length ? { rows, total: rows.reduce((s, r) => s + r.minutes, 0) } : null;
 }

@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ClientForm, InviteButton } from "./client-forms";
+import { PortalHoursToggle } from "./portal-hours-toggle";
 import { QuickBooksLink } from "./quickbooks-link";
 import { suggestCustomer, type QBCustomer } from "@/lib/quickbooks/client";
 import { getConnection, listCustomers, quickbooksConfig } from "@/lib/quickbooks/connection";
@@ -61,6 +62,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <h2 className="text-lg font-bold">Portal access</h2>
             <p className="mt-1 text-sm text-muted">{portalStatus}</p>
             <div className="mt-4"><InviteButton clientId={client.id} invited={Boolean(client.portal_user_id)} /></div>
+            <PortalHoursToggle clientId={client.id} checked={client.show_hours_in_portal} />
           </Card>
           {qbConfigured ? (
             <Card>
