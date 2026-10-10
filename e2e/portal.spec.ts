@@ -1,8 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { e2eEnabled, seedE2E } from "./seed";
+import { e2eEnabled, seedE2E, teardownE2E } from "./seed";
 
 test.skip(!e2eEnabled, "Set E2E_* env vars to run against a deployed preview.");
+
+test.afterAll(async () => {
+  if (e2eEnabled) await teardownE2E();
+});
 
 async function login(page: Page) {
   await page.goto("/login");
