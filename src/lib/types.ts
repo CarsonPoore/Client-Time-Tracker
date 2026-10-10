@@ -21,8 +21,6 @@ export interface DeliverableRow {
   clickup_task_id: string | null;
   status: DeliverableStatus; published_at: string | null; created_at: string;
   current_version_id: string | null; revision_limit: number | null;
-  // Legacy columns, dropped by a later migration; remove these then.
-  file_path?: string | null; link_url?: string | null; client_feedback?: string | null; decided_at?: string | null;
 }
 export interface VersionRow {
   id: string; deliverable_id: string; number: number; file_path: string | null; link_url: string | null;

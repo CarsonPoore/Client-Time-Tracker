@@ -3,8 +3,8 @@ import { notFound } from "next/navigation";
 import { Card, EmptyState, PageHeader, StatusPill, formatDate } from "@/components/ui";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { DeliverableRow, FileRow, RequestRow, TaskRow, UpdateRow } from "@/lib/types";
-import { DeliverableCard, NewDeliverableForm, ProjectFiles, RequestRowActions, UpdateForm, DeleteUpdateButton } from "./forms";
+import type { FileRow, RequestRow, TaskRow, UpdateRow } from "@/lib/types";
+import { type DeliverableWithVersion, DeliverableCard, NewDeliverableForm, ProjectFiles, RequestRowActions, UpdateForm, DeleteUpdateButton } from "./forms";
 
 export default async function AdminProjectPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
@@ -16,7 +16,7 @@ export default async function AdminProjectPage({ params }: { params: Promise<{ i
 
   const [tasks, deliverables, updates, files, requests] = await Promise.all([
     supabase.from("tasks").select("*").eq("project_id", id).eq("deleted", false).order("status").order("due_date", { nullsFirst: false }),
-    supabase.from("deliverables").select("*").eq("project_id", id).order("created_at", { ascending: false }),
+    supabase.from("deliverables").select("*, current_version:deliverable_versions!deliverables_current_version_id_fkey(file_path, link_url)").eq("project_id", id).order("created_at", { ascending: false }),
     supabase.from("updates").select("*").eq("project_id", id).order("published_at", { ascending: false }).limit(30),
     supabase.from("files").select("*").eq("project_id", id).order("created_at", { ascending: false }),
     supabase.from("requests").select("*").eq("project_id", id).order("created_at", { ascending: false }),
@@ -35,8 +35,8 @@ export default async function AdminProjectPage({ params }: { params: Promise<{ i
             <h2 className="mb-4 text-lg font-bold">Deliverables</h2>
             <NewDeliverableForm projectId={id} tasks={taskOptions} />
             <div className="mt-6 space-y-4">
-              {(deliverables.data as DeliverableRow[] | null)?.length
-                ? (deliverables.data as DeliverableRow[]).map((d) => <DeliverableCard key={d.id} deliverable={d} tasks={taskOptions} />)
+              {(deliverables.data as DeliverableWithVersion[] | null)?.length
+                ? (deliverables.data as DeliverableWithVersion[]).map((d) => <DeliverableCard key={d.id} deliverable={d} tasks={taskOptions} />)
                 : <EmptyState title="No deliverables yet" />}
             </div>
           </Card>

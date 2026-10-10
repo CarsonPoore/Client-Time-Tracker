@@ -18,10 +18,11 @@ export async function createDeliverable(projectId: string, _prev: ActionResult, 
   const rawPath = String(form.get("file_path") ?? "").trim();
   if (rawPath && !pathBelongs(projectId, rawPath, "deliverables")) return { error: "Invalid upload." };
   const supabase = await createClient();
-  const { data: created, error } = await supabase.from("deliverables").insert({ project_id: projectId, ...parsed.data }).select("id").single();
+  const { link_url, ...fields } = parsed.data;
+  const { data: created, error } = await supabase.from("deliverables").insert({ project_id: projectId, ...fields }).select("id").single();
   if (error || !created) return { error: "Couldn't create the deliverable." };
   const { data: version, error: vErr } = await supabase.from("deliverable_versions").insert({
-    deliverable_id: created.id, number: 1, status: "draft", file_path: rawPath || null, link_url: parsed.data.link_url, created_by: viewer.userId,
+    deliverable_id: created.id, number: 1, status: "draft", file_path: rawPath || null, link_url, created_by: viewer.userId,
   }).select("id").single();
   if (vErr || !version) return { error: "Created the deliverable, but couldn't start its first version." };
   const { error: uErr } = await supabase.from("deliverables").update({ current_version_id: version.id }).eq("id", created.id);
@@ -35,13 +36,14 @@ export async function editDeliverable(id: string, _prev: ActionResult, form: For
   const parsed = parseDeliverableForm(form);
   if (!parsed.ok) return { error: parsed.error };
   const supabase = await createClient();
-  const { data } = await supabase.from("deliverables").update(parsed.data).eq("id", id)
+  const { link_url, ...fields } = parsed.data;
+  const { data } = await supabase.from("deliverables").update(fields).eq("id", id)
     .in("status", ["draft", "changes_requested"]).select("project_id, current_version_id").maybeSingle();
   if (!data) return { error: "This deliverable can't be changed right now." };
   if (data.current_version_id) {
     const rawPath = String(form.get("file_path") ?? "").trim();
     if (rawPath && !pathBelongs(data.project_id, rawPath, "deliverables")) return { error: "Invalid upload." };
-    const patch: { link_url: string | null; file_path?: string } = { link_url: parsed.data.link_url };
+    const patch: { link_url: string | null; file_path?: string } = { link_url };
     if (rawPath) patch.file_path = rawPath;
     // Only a draft version is editable; publish_version promotes the draft row as-is.
     await supabase.from("deliverable_versions").update(patch).eq("id", data.current_version_id).eq("status", "draft");

@@ -22,9 +22,10 @@ describe("email templates", () => {
     const { html, text } = digestEmail({
       clientName: "Blue Duck",
       updates: [{ project: "Site", body: "Launched staging", date: "2026-10-05" }],
-      awaiting: [{ id: "d1", title: "Homepage", project: "Site" }],
+      awaiting: [{ id: "d1", title: "Homepage", project: "Site", version: 1 }],
       statusChanges: [],
       dueSoon: [{ project: "Site", task: "Copy", due: "2026-10-14" }],
+      comments: [],
     }, "https://os.x");
     expect(html).toContain("Launched staging");
     expect(html).toContain("https://os.x/portal/deliverables/d1");
@@ -38,5 +39,18 @@ describe("clientPublishedEmail version subject", () => {
     const { clientPublishedEmail } = await import("@/lib/email/templates");
     expect(clientPublishedEmail({ title: "Logo", projectName: "P", url: "https://x", versionNumber: 1 }).subject).toBe("Ready for your review: Logo");
     expect(clientPublishedEmail({ title: "Logo", projectName: "P", url: "https://x", versionNumber: 3 }).subject).toBe("Ready for your review: Logo (v3)");
+  });
+});
+
+describe("digest comments and versions", () => {
+  it("renders New comments and version numbers", () => {
+    const { html, text } = digestEmail({
+      clientName: "A", updates: [], statusChanges: [], dueSoon: [],
+      awaiting: [{ id: "d1", title: "Logo", project: "Site", version: 2 }],
+      comments: [{ deliverableId: "d1", title: "Logo", project: "Site", count: 3 }],
+    }, "https://app");
+    expect(html).toContain("Logo v2");
+    expect(text).toContain("New comments");
+    expect(text).toContain("Logo (Site): 3 new");
   });
 });

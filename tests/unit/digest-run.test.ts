@@ -3,8 +3,8 @@ import { processClientDigest, type DigestDeps } from "@/lib/email/digest-run";
 import type { DigestContent } from "@/lib/email/templates";
 
 const c = { id: "c1", name: "Blue Duck", contact_email: "a@b.co" };
-const empty: DigestContent = { clientName: "x", updates: [], awaiting: [], statusChanges: [], dueSoon: [] };
-const full: DigestContent = { ...empty, awaiting: [{ id: "1", title: "t", project: "p" }] };
+const empty: DigestContent = { clientName: "x", updates: [], awaiting: [], statusChanges: [], dueSoon: [], comments: [] };
+const full: DigestContent = { ...empty, awaiting: [{ id: "1", title: "t", project: "p", version: 1 }] };
 
 function deps(over: Partial<DigestDeps> = {}) {
   return {

@@ -148,34 +148,42 @@ describe("requests", () => {
   });
 });
 
-describe("decide_deliverable", () => {
-  it("anonymous cannot call decide_deliverable", async () => {
+describe("decide_version", () => {
+  const ver = async (id: string) =>
+    (await db.query<{ current_version_id: string }>("select current_version_id from deliverables where id = $1", [id])).rows[0].current_version_id;
+
+  it("anonymous cannot call decide_version", async () => {
+    const v = await ver(DEL_AWAIT);
     await expect(asUser(db, null, (tx) =>
-      tx.query("select * from decide_deliverable($1, 'approved', null)", [DEL_AWAIT]))).rejects.toThrow(/permission denied/);
+      tx.query("select * from decide_version($1, 'approved', null)", [v]))).rejects.toThrow(/permission denied/);
   });
 
-  it("decide_deliverable requires feedback for changes", async () => {
+  it("decide_version requires feedback for changes", async () => {
+    const v = await ver(DEL_AWAIT);
     await expect(asUser(db, ALICE, (tx) =>
-      tx.query("select * from decide_deliverable($1, 'changes_requested', '   ')", [DEL_AWAIT])))
+      tx.query("select * from decide_version($1, 'changes_requested', '   ')", [v])))
       .rejects.toThrow(/feedback_required/);
   });
 
-  it("client cannot decide another client's deliverable", async () => {
+  it("client cannot decide another client's version", async () => {
+    const v = await ver(DEL_B);
     await expect(asUser(db, ALICE, (tx) =>
-      tx.query("select * from decide_deliverable($1, 'approved', null)", [DEL_B]))).rejects.toThrow(/not_found/);
+      tx.query("select * from decide_version($1, 'approved', null)", [v]))).rejects.toThrow(/not_found/);
   });
 
   it("client cannot decide a draft", async () => {
+    const v = await ver(DEL_DRAFT);
     await expect(asUser(db, ALICE, (tx) =>
-      tx.query("select * from decide_deliverable($1, 'approved', null)", [DEL_DRAFT]))).rejects.toThrow(/not_found/);
+      tx.query("select * from decide_version($1, 'approved', null)", [v]))).rejects.toThrow(/not_found/);
   });
 
-  it("client approves own awaiting deliverable once", async () => {
+  it("client approves own awaiting version once", async () => {
+    const v = await ver(DEL_AWAIT);
     const res = await asUser(db, ALICE, (tx) =>
-      tx.query<{ status: string; decided_by: string }>("select * from decide_deliverable($1, 'approved', null)", [DEL_AWAIT]));
+      tx.query<{ status: string; decided_by: string }>("select * from decide_version($1, 'approved', null)", [v]));
     expect(res.rows[0]).toMatchObject({ status: "approved", decided_by: ALICE });
     await expect(asUser(db, ALICE, (tx) =>
-      tx.query("select * from decide_deliverable($1, 'approved', null)", [DEL_AWAIT]))).rejects.toThrow(/not_awaiting_approval/);
+      tx.query("select * from decide_version($1, 'approved', null)", [v]))).rejects.toThrow(/not_awaiting_approval/);
   });
 });
 

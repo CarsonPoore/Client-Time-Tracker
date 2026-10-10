@@ -1,7 +1,7 @@
 import type { DigestContent } from "./templates";
 
 export function isDigestEmpty(c: DigestContent): boolean {
-  return !c.updates.length && !c.awaiting.length && !c.statusChanges.length && !c.dueSoon.length;
+  return !c.updates.length && !c.awaiting.length && !c.statusChanges.length && !c.dueSoon.length && !c.comments.length;
 }
 
 function easternParts(now: Date) {

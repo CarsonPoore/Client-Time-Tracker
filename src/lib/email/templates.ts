@@ -70,9 +70,10 @@ export function clientPublishedEmail(i: { title: string; projectName: string; ur
 export interface DigestContent {
   clientName: string;
   updates: { project: string; body: string; date: string }[];
-  awaiting: { id: string; title: string; project: string }[];
+  awaiting: { id: string; title: string; project: string; version: number }[];
   statusChanges: { project: string; task: string; status: string }[];
   dueSoon: { project: string; task: string; due: string }[];
+  comments: { deliverableId: string; title: string; project: string; count: number }[];
 }
 
 function section<T>(title: string, items: T[], html: (t: T) => string, text: (t: T) => string) {
@@ -86,8 +87,11 @@ function section<T>(title: string, items: T[], html: (t: T) => string, text: (t:
 export function digestEmail(c: DigestContent, appUrl: string) {
   const parts = [
     section("Waiting on you", c.awaiting,
-      (a) => `<a href="${escapeHtml(`${appUrl}/portal/deliverables/${a.id}`)}" style="color:#1e4fd8;font-weight:700">${escapeHtml(a.title)}</a> · ${escapeHtml(a.project)}`,
-      (a) => `${a.title} (${a.project}): ${appUrl}/portal/deliverables/${a.id}`),
+      (a) => `<a href="${escapeHtml(`${appUrl}/portal/deliverables/${a.id}`)}" style="color:#1e4fd8;font-weight:700">${escapeHtml(`${a.title} v${a.version}`)}</a> · ${escapeHtml(a.project)}`,
+      (a) => `${a.title} v${a.version} (${a.project}): ${appUrl}/portal/deliverables/${a.id}`),
+    section("New comments", c.comments,
+      (m) => `<a href="${escapeHtml(`${appUrl}/portal/deliverables/${m.deliverableId}`)}" style="color:#1e4fd8;font-weight:700">${escapeHtml(m.title)}</a> · ${escapeHtml(m.project)} · ${m.count} new`,
+      (m) => `${m.title} (${m.project}): ${m.count} new`),
     section("Updates", c.updates, (u) => `<strong>${escapeHtml(u.project)}:</strong> ${nl2br(u.body)}`, (u) => `${u.project}: ${u.body}`),
     section("Status changes", c.statusChanges, (s) => `${escapeHtml(s.task)} → <strong>${escapeHtml(s.status)}</strong> · ${escapeHtml(s.project)}`, (s) => `${s.task} → ${s.status} (${s.project})`),
     section("Coming up", c.dueSoon, (d) => `${escapeHtml(d.task)} · due ${escapeHtml(d.due)} · ${escapeHtml(d.project)}`, (d) => `${d.task}, due ${d.due} (${d.project})`),

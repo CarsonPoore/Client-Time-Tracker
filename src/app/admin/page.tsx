@@ -13,8 +13,8 @@ export default async function AdminDashboard() {
   const [awaiting, decided, requests, lastRun, time] = await Promise.all([
     supabase.from("deliverables").select("id, title, published_at, project:projects(id, name, client:clients(name))")
       .eq("status", "awaiting_approval").order("published_at", { ascending: true }),
-    supabase.from("deliverables").select("id, title, status, decided_at, project:projects(id, name, client:clients(name))")
-      .in("status", ["approved", "changes_requested"]).order("decided_at", { ascending: false }).limit(8),
+    supabase.from("deliverables").select("id, title, status, updated_at, current_version:deliverable_versions!deliverables_current_version_id_fkey(decided_at), project:projects(id, name, client:clients(name))")
+      .in("status", ["approved", "changes_requested"]).order("updated_at", { ascending: false }).limit(8),
     supabase.from("requests").select("id, kind, body, created_at, project_id, client:clients(id, name)")
       .eq("status", "open").order("created_at", { ascending: false }),
     supabase.from("sync_runs").select("*").order("started_at", { ascending: false }).limit(1).maybeSingle(),
@@ -103,7 +103,7 @@ export default async function AdminDashboard() {
                         <Link href={`/admin/deliverables/${d.id}`} className="font-semibold">{d.title}</Link>
                         <StatusPill status={d.status} />
                       </div>
-                      <p className="text-sm text-muted">{project.client.name} · {formatDate(d.decided_at)}</p>
+                      <p className="text-sm text-muted">{project.client.name} · {formatDate(one(d.current_version)?.decided_at ?? d.updated_at)}</p>
                     </li>
                   );
                 })}

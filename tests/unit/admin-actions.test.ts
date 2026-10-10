@@ -105,6 +105,7 @@ describe("createDeliverable", () => {
     const r = await admin.createDeliverable(P, { error: null }, fd({ title: "Logo", link_url: "https://x.com" }));
     expect(r.error).toBeNull();
     expect(ops("deliverables", "insert")[0][0]).toMatchObject({ project_id: P, title: "Logo" });
+    expect(ops("deliverables", "insert")[0][0]).not.toHaveProperty("link_url");
     expect(ops("deliverable_versions", "insert")).toEqual([[{ deliverable_id: "d1", number: 1, status: "draft", file_path: null, link_url: "https://x.com", created_by: "admin1" }]]);
     expect(ops("deliverables", "update")).toEqual([[{ current_version_id: "v1" }]]);
   });
@@ -157,6 +158,7 @@ describe("editDeliverable", () => {
     const r = await admin.editDeliverable("d1", { error: null }, fd({ title: "Logo", link_url: "https://new.example", file_path: path }));
     expect(r.error).toBeNull();
     expect(ops("deliverable_versions", "update")).toEqual([[{ link_url: "https://new.example", file_path: path }]]);
+    expect(ops("deliverables", "update")[0][0]).not.toHaveProperty("link_url");
     expect(ops("deliverable_versions", "eq")).toEqual([["id", "v9"], ["status", "draft"]]);
   });
 });

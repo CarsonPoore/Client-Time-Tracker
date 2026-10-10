@@ -234,11 +234,6 @@ describe("publish_version / decide_version", () => {
     await expect(rpc(ALICE, "select * from decide_version($1, 'changes_requested', $2)", [v, "x".repeat(5001)])).rejects.toThrow(/feedback_too_long/);
   });
 
-  it("legacy decide_deliverable delegates to the current version", async () => {
-    await rpc(ALICE, "select * from decide_deliverable($1, 'approved', null)", [D_LINK]);
-    const v = await db.query<{ status: string }>("select status from deliverable_versions where id = $1", [await currentVersion(D_LINK)]);
-    expect(v.rows[0].status).toBe("approved");
-  });
 });
 
 describe("activity", () => {
@@ -263,5 +258,18 @@ describe("activity", () => {
     const r = await db.query<{ n: number }>(
       "select count(*)::int n from client_activity where type = 'version_approved' and summary = 'Header v1 approved'");
     expect(r.rows[0].n).toBe(1);
+  });
+});
+
+describe("legacy columns", () => {
+  it("are dropped", async () => {
+    const r = await db.query<{ column_name: string }>(
+      "select column_name from information_schema.columns where table_name = 'deliverables' and column_name in ('client_feedback','file_path','link_url','decided_at','decided_by')");
+    expect(r.rows).toEqual([]);
+  });
+
+  it("legacy decide_deliverable rpc is dropped", async () => {
+    const r = await db.query("select 1 from pg_proc where proname = 'decide_deliverable'");
+    expect(r.rows).toEqual([]);
   });
 });
