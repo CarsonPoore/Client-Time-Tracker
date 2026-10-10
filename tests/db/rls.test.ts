@@ -215,3 +215,15 @@ describe("quickbooks_connection", () => {
     await expect(db.exec(`update clients set quickbooks_customer_id = '42' where id = '${CLIENT_B}'`)).rejects.toThrow(/unique/);
   });
 });
+
+describe("time_entries", () => {
+  it("admins can log time; clients can't see it", async () => {
+    await asUser(db, ADMIN, (tx) => tx.query(`insert into time_entries (client_id, project_id, work_date, minutes) values ($1, $2, '2026-10-01', 60)`, [CLIENT_A, PROJ_A]));
+    expect((await asUser(db, ALICE, (tx) => tx.query("select * from time_entries"))).rows).toHaveLength(0);
+    await expect(asUser(db, ALICE, (tx) => tx.query(`insert into time_entries (client_id, work_date, minutes) values ($1, '2026-10-01', 15)`, [CLIENT_A]))).rejects.toThrow();
+  });
+  it("rejects a project from another client and non-15-minute amounts", async () => {
+    await expect(db.query(`insert into time_entries (client_id, project_id, work_date, minutes) values ($1, $2, '2026-10-01', 60)`, [CLIENT_A, PROJ_B])).rejects.toThrow(/does not belong/);
+    await expect(db.query(`insert into time_entries (client_id, work_date, minutes) values ($1, '2026-10-01', 20)`, [CLIENT_A])).rejects.toThrow();
+  });
+});
