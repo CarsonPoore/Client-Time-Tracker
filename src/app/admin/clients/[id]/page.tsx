@@ -5,6 +5,9 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ClientForm, InviteButton } from "./client-forms";
+import { QuickBooksLink } from "./quickbooks-link";
+import { suggestCustomer, type QBCustomer } from "@/lib/quickbooks/client";
+import { getConnection, listCustomers, quickbooksConfig } from "@/lib/quickbooks/connection";
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
@@ -20,6 +23,20 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     const { data } = await createAdminClient().auth.admin.getUserById(client.portal_user_id);
     portalStatus = data.user?.last_sign_in_at ? `Active · last sign-in ${formatDate(data.user.last_sign_in_at)}` : "Invited, hasn't signed in";
   }
+
+  const qbConfigured = Boolean(quickbooksConfig());
+  const qbConnection = qbConfigured ? await getConnection() : null;
+  let customers: QBCustomer[] = [];
+  let qbError: string | null = null;
+  if (qbConnection) {
+    try {
+      customers = (await listCustomers()) ?? [];
+    } catch (e) {
+      console.error("QuickBooks customer list failed", e);
+      qbError = "Couldn't load customers from QuickBooks. Try reconnecting in Settings.";
+    }
+  }
+  const suggested = client.quickbooks_customer_id ? null : suggestCustomer(client, customers);
 
   return (
     <>
@@ -45,6 +62,25 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <p className="mt-1 text-sm text-muted">{portalStatus}</p>
             <div className="mt-4"><InviteButton clientId={client.id} invited={Boolean(client.portal_user_id)} /></div>
           </Card>
+          {qbConfigured ? (
+            <Card>
+              <h2 className="text-lg font-bold">QuickBooks</h2>
+              <p className="mt-1 text-sm text-muted">
+                {client.quickbooks_customer_name ? `Linked to ${client.quickbooks_customer_name}.` : "Not linked to a QuickBooks customer."}
+              </p>
+              <div className="mt-4">
+                {!qbConnection ? (
+                  <p className="text-sm text-muted"><Link href="/admin/settings" className="font-semibold text-link">Connect QuickBooks</Link> to pick a customer.</p>
+                ) : qbError ? (
+                  <p className="text-sm text-danger">{qbError}</p>
+                ) : (
+                  <QuickBooksLink key={client.quickbooks_customer_id ?? "none"} clientId={client.id} linkedId={client.quickbooks_customer_id}
+                    suggestedId={suggested?.id ?? null}
+                    customers={customers.map(({ id, displayName, email }) => ({ id, displayName, email }))} />
+                )}
+              </div>
+            </Card>
+          ) : null}
           <Card>
             <h2 className="mb-4 text-lg font-bold">Details</h2>
             <ClientForm client={client} />

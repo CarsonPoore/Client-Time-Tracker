@@ -195,3 +195,23 @@ describe("task status tracking", () => {
     expect(r.rows[0].status_changed_at.getUTCFullYear()).toBeGreaterThan(2020);
   });
 });
+
+describe("quickbooks_connection", () => {
+  beforeAll(async () => {
+    await db.exec(`insert into quickbooks_connection (realm_id, access_token, refresh_token, access_expires_at, refresh_expires_at)
+      values ('R1', 'secret-access', 'secret-refresh', now(), now())`);
+  });
+  it("tokens are unreadable to admins, clients and anonymous users", async () => {
+    for (const user of [ADMIN, ALICE, null]) {
+      await expect(asUser(db, user, (tx) => tx.query("select * from quickbooks_connection"))).rejects.toThrow(/permission denied/);
+    }
+  });
+  it("allows only one connection row", async () => {
+    await expect(db.exec(`insert into quickbooks_connection (id, realm_id, access_token, refresh_token, access_expires_at, refresh_expires_at)
+      values (false, 'R2', 'a', 'b', now(), now())`)).rejects.toThrow();
+  });
+  it("a QuickBooks customer links to at most one client", async () => {
+    await db.exec(`update clients set quickbooks_customer_id = '42' where id = '${CLIENT_A}'`);
+    await expect(db.exec(`update clients set quickbooks_customer_id = '42' where id = '${CLIENT_B}'`)).rejects.toThrow(/unique/);
+  });
+});
