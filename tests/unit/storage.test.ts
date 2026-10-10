@@ -3,15 +3,34 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 const { buildStoragePath } = await import("@/lib/storage");
 
+const P = "11111111-2222-3333-4444-555555555555";
+
 describe("buildStoragePath", () => {
   it("scopes by project and kind and sanitizes the name", () => {
-    expect(buildStoragePath("p1", "My Logo (final).PNG", "deliverables", "abc"))
-      .toBe("p1/deliverables/abc-my-logo-final.png");
+    expect(buildStoragePath(P, "My Logo (final).PNG", "deliverables", "abc"))
+      .toBe(`${P}/deliverables/abc-my-logo-final.png`);
   });
   it("cannot escape the project folder", () => {
-    expect(buildStoragePath("p1", "../../etc/passwd", "files", "x")).toBe("p1/files/x-etc-passwd");
+    expect(buildStoragePath(P, "../../etc/passwd", "files", "x")).toBe(`${P}/files/x-etc-passwd`);
   });
   it("keeps a fallback name", () => {
-    expect(buildStoragePath("p1", "///", "files", "x")).toBe("p1/files/x-file");
+    expect(buildStoragePath(P, "///", "files", "x")).toBe(`${P}/files/x-file`);
+  });
+  it("rejects a non-UUID project id", () => {
+    expect(() => buildStoragePath("p1/../p2", "a.png", "files", "x")).toThrow();
+    expect(() => buildStoragePath("p1", "a.png", "files", "x")).toThrow();
+  });
+  it("rejects a bad kind", () => {
+    expect(() => buildStoragePath(P, "a.png", "x/../../p2/files" as never, "x")).toThrow();
+  });
+  it("rejects a bad id", () => {
+    expect(() => buildStoragePath(P, "a.png", "files", "../x")).toThrow();
+    expect(() => buildStoragePath(P, "a.png", "files", "")).toThrow();
+  });
+  it("keeps tricky names contained", () => {
+    const re = new RegExp(`^${P}/files/x-[a-z0-9-]+(\\.[a-z0-9]+)?$`);
+    for (const name of ["..\\..\\x", "archive.tar.gz", ".env", "a".repeat(300), "a".repeat(300) + ".png"]) {
+      expect(buildStoragePath(P, name, "files", "x")).toMatch(re);
+    }
   });
 });

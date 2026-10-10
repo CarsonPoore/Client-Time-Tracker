@@ -4,7 +4,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const BUCKET = "project-files";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ID_RE = /^[a-z0-9-]+$/i;
+
 export function buildStoragePath(projectId: string, fileName: string, kind: "files" | "deliverables", id: string = randomUUID()): string {
+  if (!UUID_RE.test(projectId)) throw new Error("Invalid project id.");
+  if (kind !== "files" && kind !== "deliverables") throw new Error("Invalid storage kind.");
+  if (!ID_RE.test(id)) throw new Error("Invalid object id.");
   // A dot only starts an extension if no path separator follows it ("../../etc/passwd" has none).
   const lastDot = fileName.lastIndexOf(".");
   const dot = /[\\/]/.test(fileName.slice(lastDot + 1)) ? -1 : lastDot;
