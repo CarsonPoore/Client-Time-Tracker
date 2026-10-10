@@ -37,6 +37,17 @@ describe("decideVersion", () => {
   });
 });
 
+describe("decideVersion notifications", () => {
+  it("notifies using the deliverable the RPC decided, not the client-supplied id", async () => {
+    const notify = await import("@/lib/email/notify");
+    rpc.mockResolvedValue({ data: { id: "v1", deliverable_id: "real-d" }, error: null });
+    const r = await decideVersion("v1", "spoofed-d", { error: null }, fd({ decision: "approved" }));
+    expect(r.error).toBeNull();
+    expect(notify.notifyAdminDecision).toHaveBeenCalledWith("real-d");
+    expect(notify.postDecisionToClickUp).toHaveBeenCalledWith("real-d");
+  });
+});
+
 describe("addComment", () => {
   it("inserts as the signed-in client with pin", async () => {
     single.mockResolvedValue({ data: { id: "cm1" }, error: null });

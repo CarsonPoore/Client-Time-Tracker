@@ -36,8 +36,16 @@ export async function editDeliverable(id: string, _prev: ActionResult, form: For
   if (!parsed.ok) return { error: parsed.error };
   const supabase = await createClient();
   const { data } = await supabase.from("deliverables").update(parsed.data).eq("id", id)
-    .in("status", ["draft", "changes_requested"]).select("project_id").maybeSingle();
+    .in("status", ["draft", "changes_requested"]).select("project_id, current_version_id").maybeSingle();
   if (!data) return { error: "This deliverable can't be changed right now." };
+  if (data.current_version_id) {
+    const rawPath = String(form.get("file_path") ?? "").trim();
+    if (rawPath && !pathBelongs(data.project_id, rawPath, "deliverables")) return { error: "Invalid upload." };
+    const patch: { link_url: string | null; file_path?: string } = { link_url: parsed.data.link_url };
+    if (rawPath) patch.file_path = rawPath;
+    // Only a draft version is editable; publish_version promotes the draft row as-is.
+    await supabase.from("deliverable_versions").update(patch).eq("id", data.current_version_id).eq("status", "draft");
+  }
   refresh(data.project_id);
   return { error: null, message: "Saved." };
 }

@@ -149,3 +149,14 @@ describe("deleteDeliverable", () => {
     expect(h.removeObject.mock.calls).toEqual([["a"], ["b"]]);
   });
 });
+
+describe("editDeliverable", () => {
+  it("mirrors link_url (and file_path) onto the current draft version", async () => {
+    h.results.deliverables = [{ data: { project_id: P, current_version_id: "v9" }, error: null }];
+    const path = `${P}/deliverables/x-a.png`;
+    const r = await admin.editDeliverable("d1", { error: null }, fd({ title: "Logo", link_url: "https://new.example", file_path: path }));
+    expect(r.error).toBeNull();
+    expect(ops("deliverable_versions", "update")).toEqual([[{ link_url: "https://new.example", file_path: path }]]);
+    expect(ops("deliverable_versions", "eq")).toEqual([["id", "v9"], ["status", "draft"]]);
+  });
+});

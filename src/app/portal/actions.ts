@@ -23,15 +23,19 @@ export async function decideDeliverable(deliverableId: string, _prev: PortalResu
   return { error: null, message: parsed.decision === "approved" ? "Approved. Thank you!" : "Got it. We'll make those changes." };
 }
 
-export async function decideVersion(versionId: string, deliverableId: string, _prev: PortalResult, form: FormData): Promise<PortalResult> {
+export async function decideVersion(versionId: string, _deliverableId: string, _prev: PortalResult, form: FormData): Promise<PortalResult> {
   await requireClient();
   const parsed = parseDecision(form);
   if (!parsed.ok) return { error: parsed.error };
   const supabase = await createClient();
-  const { error } = await supabase.rpc("decide_version", { p_version_id: versionId, p_decision: parsed.decision, p_note: parsed.feedback });
+  const { data, error } = await supabase.rpc("decide_version", { p_version_id: versionId, p_decision: parsed.decision, p_note: parsed.feedback });
   if (error) return { error: versionErrorMessage(error.message) };
-  await Promise.allSettled([postDecisionToClickUp(deliverableId), notifyAdminDecision(deliverableId)]);
-  revalidatePath(`/portal/deliverables/${deliverableId}`);
+  // Trust the deliverable the RPC actually decided, not the client-supplied id.
+  const decidedId = (data as { deliverable_id?: string } | null)?.deliverable_id;
+  if (decidedId) {
+    await Promise.allSettled([postDecisionToClickUp(decidedId), notifyAdminDecision(decidedId)]);
+    revalidatePath(`/portal/deliverables/${decidedId}`);
+  }
   revalidatePath("/portal");
   return { error: null, message: parsed.decision === "approved" ? "Approved. Thank you!" : "Got it. We'll make those changes." };
 }

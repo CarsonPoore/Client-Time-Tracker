@@ -5,24 +5,30 @@ import { ClickUpClient } from "@/lib/clickup/client";
 import { sendEmail } from "./send";
 import { adminDecisionEmail, adminRequestEmail, clientPublishedEmail } from "./templates";
 
-type CurrentVersion = { number: number; file_path: string | null; link_url: string | null };
+type Status = "approved" | "changes_requested" | "awaiting_approval" | "draft";
+type CurrentVersion = { number: number; status: Status; file_path: string | null; link_url: string | null };
 
 // deliverables <-> deliverable_versions has two FKs, so read the current version in a second query
 // rather than relying on an embed hint.
 async function loadDeliverable(id: string) {
   const admin = createAdminClient();
   const { data } = await admin.from("deliverables")
-    .select("id, title, status, client_feedback, clickup_task_id, current_version_id, project:projects(id, name, clickup_list_id, client:clients(id, name, contact_email, portal_user_id))")
+    .select("id, title, status, clickup_task_id, current_version_id, project:projects(id, name, clickup_list_id, client:clients(id, name, contact_email, portal_user_id))")
     .eq("id", id).single();
   if (!data) return null;
   let current_version: CurrentVersion | null = null;
+  let decision_note: string | null = null;
   if (data.current_version_id) {
-    const { data: v } = await admin.from("deliverable_versions").select("number, file_path, link_url").eq("id", data.current_version_id).maybeSingle();
+    const { data: v } = await admin.from("deliverable_versions").select("number, status, file_path, link_url").eq("id", data.current_version_id).maybeSingle();
     current_version = (v as CurrentVersion | null) ?? null;
+    const { data: c } = await admin.from("deliverable_comments").select("body")
+      .eq("version_id", data.current_version_id).eq("kind", "decision").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    decision_note = (c as { body: string } | null)?.body ?? null;
   }
-  return { ...data, current_version } as unknown as {
-    id: string; title: string; status: "approved" | "changes_requested" | "awaiting_approval" | "draft";
-    client_feedback: string | null; clickup_task_id: string | null; current_version: CurrentVersion | null;
+  // Status comes from the current version; the note from its latest decision comment.
+  return { ...data, status: current_version?.status ?? data.status, current_version, decision_note } as unknown as {
+    id: string; title: string; status: Status;
+    decision_note: string | null; clickup_task_id: string | null; current_version: CurrentVersion | null;
     project: { id: string; name: string; clickup_list_id: string | null; client: { id: string; name: string; contact_email: string | null; portal_user_id: string | null } };
   };
 }
@@ -39,7 +45,7 @@ export async function notifyAdminDecision(id: string): Promise<void> {
   if (!d || (d.status !== "approved" && d.status !== "changes_requested")) return;
   const env = serverEnv();
   const email = adminDecisionEmail({
-    clientName: d.project.client.name, title: d.title, decision: d.status, feedback: d.client_feedback,
+    clientName: d.project.client.name, title: d.title, decision: d.status, feedback: d.decision_note,
     url: `${env.APP_URL}/admin/projects/${d.project.id}`,
   });
   await sendEmail({ to: env.ADMIN_EMAILS, ...email });
@@ -63,7 +69,7 @@ export async function postDecisionToClickUp(id: string): Promise<void> {
   if (!d || (d.status !== "approved" && d.status !== "changes_requested")) return;
   const text = d.status === "approved"
     ? `Client approved "${d.title}" in the CPC portal.`
-    : `Client requested changes on "${d.title}" in the CPC portal:\n\n${d.client_feedback ?? ""}`;
+    : `Client requested changes on "${d.title}" in the CPC portal:\n\n${d.decision_note ?? ""}`;
   const cu = new ClickUpClient(serverEnv().CLICKUP_API_TOKEN);
   try {
     if (d.clickup_task_id) await cu.postTaskComment(d.clickup_task_id, text);
