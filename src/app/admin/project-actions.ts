@@ -21,6 +21,18 @@ export async function createDeliverable(projectId: string, _prev: ActionResult, 
   return { error: null, message: "Draft created. Add a file if needed, then send it for approval." };
 }
 
+export async function editDeliverable(id: string, _prev: ActionResult, form: FormData): Promise<ActionResult> {
+  await requireAdmin();
+  const parsed = parseDeliverableForm(form);
+  if (!parsed.ok) return { error: parsed.error };
+  const supabase = await createClient();
+  const { data } = await supabase.from("deliverables").update(parsed.data).eq("id", id)
+    .in("status", ["draft", "changes_requested"]).select("project_id").maybeSingle();
+  if (!data) return { error: "This deliverable can't be changed right now." };
+  refresh(data.project_id);
+  return { error: null, message: "Saved." };
+}
+
 export async function publishDeliverable(id: string): Promise<ActionResult> {
   await requireAdmin();
   const supabase = await createClient();
@@ -68,8 +80,9 @@ export async function postUpdate(projectId: string, _prev: ActionResult, form: F
 export async function deleteUpdate(id: string): Promise<ActionResult> {
   await requireAdmin();
   const supabase = await createClient();
-  const { data } = await supabase.from("updates").delete().eq("id", id).select("project_id").maybeSingle();
-  if (data) refresh(data.project_id);
+  const { data } = await supabase.from("updates").delete().eq("id", id).eq("source", "os").select("project_id").maybeSingle();
+  if (!data) return { error: "Only updates posted here can be deleted. Edit or remove ClickUp updates in ClickUp." };
+  refresh(data.project_id);
   return { error: null };
 }
 
@@ -103,11 +116,17 @@ export async function attachDeliverableFile(deliverableId: string, projectId: st
   await requireAdmin();
   if (!pathBelongs(projectId, file.path, "deliverables")) return { error: "Invalid upload." };
   const supabase = await createClient();
-  const { data: old } = await supabase.from("deliverables").select("file_path").eq("id", deliverableId).single();
-  const { error } = await supabase.from("deliverables").update({ file_path: file.path }).eq("id", deliverableId).eq("project_id", projectId);
-  if (!error && old?.file_path) await removeObject(old.file_path);
+  const { data: old } = await supabase.from("deliverables").select("file_path").eq("id", deliverableId).eq("project_id", projectId).maybeSingle();
+  const { data: changed, error } = await supabase.from("deliverables").update({ file_path: file.path })
+    .eq("id", deliverableId).eq("project_id", projectId).in("status", ["draft", "changes_requested"]).select("id").maybeSingle();
+  if (error || !changed) {
+    await removeObject(file.path);
+    refresh(projectId);
+    return { error: error ? "Couldn't attach the file." : "This deliverable can't be changed right now." };
+  }
+  if (old?.file_path && old.file_path !== file.path) await removeObject(old.file_path);
   refresh(projectId);
-  return { error: error ? "Couldn't attach the file." : null };
+  return { error: null };
 }
 
 export async function deleteFile(id: string): Promise<ActionResult> {

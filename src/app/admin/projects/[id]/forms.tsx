@@ -5,7 +5,7 @@ import { FileUploader } from "@/components/file-uploader";
 import type { DeliverableRow, FileRow } from "@/lib/types";
 import type { ActionResult } from "../../actions";
 import {
-  attachDeliverableFile, createAdminUpload, createDeliverable, deleteDeliverable, deleteFile, deleteUpdate,
+  attachDeliverableFile, createAdminUpload, createDeliverable, editDeliverable, deleteDeliverable, deleteFile, deleteUpdate,
   postUpdate, publishDeliverable, recordProjectFile, setRequestStatus,
 } from "../../project-actions";
 
@@ -37,7 +37,29 @@ function useAction() {
   return { pending, result, run: (fn: () => Promise<ActionResult>) => start(async () => setResult(await fn())) };
 }
 
-export function DeliverableCard({ deliverable: d }: { deliverable: DeliverableRow }) {
+function EditDeliverableForm({ d, tasks }: { d: DeliverableRow; tasks: { id: string; name: string }[] }) {
+  const [state, action, pending] = useActionState<ActionResult, FormData>(editDeliverable.bind(null, d.id), { error: null });
+  return (
+    <details className="mt-4 rounded-lg border border-line p-4">
+      <summary className="cursor-pointer text-sm font-semibold text-royal">Edit details</summary>
+      <form action={action} className="mt-4 space-y-4">
+        <Field label="Title" htmlFor={`title-${d.id}`}><Input id={`title-${d.id}`} name="title" required defaultValue={d.title} /></Field>
+        <Field label="Description" htmlFor={`description-${d.id}`}><Textarea id={`description-${d.id}`} name="description" defaultValue={d.description ?? ""} /></Field>
+        <Field label="Link (optional)" htmlFor={`link_url-${d.id}`}><Input id={`link_url-${d.id}`} name="link_url" type="url" defaultValue={d.link_url ?? ""} /></Field>
+        <Field label="Linked ClickUp task (optional)" htmlFor={`clickup_task_id-${d.id}`}>
+          <select id={`clickup_task_id-${d.id}`} name="clickup_task_id" defaultValue={d.clickup_task_id ?? ""} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm">
+            <option value="">None — post to the project list</option>
+            {tasks.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </Field>
+        <FormMessage error={state.error} success={state.message} />
+        <Button type="submit" disabled={pending}>Save changes</Button>
+      </form>
+    </details>
+  );
+}
+
+export function DeliverableCard({ deliverable: d, tasks }: { deliverable: DeliverableRow; tasks: { id: string; name: string }[] }) {
   const { pending, result, run } = useAction();
   const editable = d.status === "draft" || d.status === "changes_requested";
   return (
@@ -53,6 +75,7 @@ export function DeliverableCard({ deliverable: d }: { deliverable: DeliverableRo
       {d.status === "changes_requested" && d.client_feedback ? (
         <blockquote className="mt-3 border-l-2 border-gold pl-3 text-sm whitespace-pre-line">{d.client_feedback}</blockquote>
       ) : null}
+      {editable ? <EditDeliverableForm d={d} tasks={tasks} /> : null}
       {editable ? (
         <div className="mt-4 flex flex-wrap items-start gap-3">
           <FileUploader projectId={d.project_id} kind="deliverables" label={d.file_path ? "Replace file" : "Attach file"}

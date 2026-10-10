@@ -21,6 +21,8 @@ export default async function AdminProjectPage({ params }: { params: Promise<{ i
   ]);
   const taskRows = (tasks.data ?? []) as TaskRow[];
 
+  const taskOptions = taskRows.map((t) => ({ id: t.clickup_task_id, name: t.name }));
+
   return (
     <>
       <p className="mb-2 text-sm"><Link className="font-semibold text-royal" href={`/admin/clients/${client.id}`}>{client.name}</Link></p>
@@ -29,10 +31,10 @@ export default async function AdminProjectPage({ params }: { params: Promise<{ i
         <div className="space-y-6">
           <Card>
             <h2 className="mb-4 text-lg font-bold">Deliverables</h2>
-            <NewDeliverableForm projectId={id} tasks={taskRows.map((t) => ({ id: t.clickup_task_id, name: t.name }))} />
+            <NewDeliverableForm projectId={id} tasks={taskOptions} />
             <div className="mt-6 space-y-4">
               {(deliverables.data as DeliverableRow[] | null)?.length
-                ? (deliverables.data as DeliverableRow[]).map((d) => <DeliverableCard key={d.id} deliverable={d} />)
+                ? (deliverables.data as DeliverableRow[]).map((d) => <DeliverableCard key={d.id} deliverable={d} tasks={taskOptions} />)
                 : <EmptyState title="No deliverables yet" />}
             </div>
           </Card>
@@ -46,7 +48,7 @@ export default async function AdminProjectPage({ params }: { params: Promise<{ i
                     {formatDate(u.published_at)} · {u.source === "clickup" ? "From ClickUp" : u.author_name}
                   </p>
                   <p className="mt-1 whitespace-pre-line">{u.body}</p>
-                  <DeleteUpdateButton id={u.id} />
+                  {u.source === "clickup" ? <p className="mt-1 text-xs text-muted">Edit or remove in ClickUp</p> : <DeleteUpdateButton id={u.id} />}
                 </li>
               ))}
             </ul>
