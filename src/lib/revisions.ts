@@ -69,3 +69,13 @@ export const COMMENT_PROJECT_SELECT = "id, author_id, version:deliverable_versio
 export function commentProjectId(row: unknown): string | null {
   return (row as CommentProjectRow)?.version?.deliverable?.project_id ?? null;
 }
+
+/** A comment is pinned only when both coordinates are present. */
+export function hasPin(c: { pin_x: number | null; pin_y: number | null }): boolean {
+  return c.pin_x != null && c.pin_y != null;
+}
+
+/** Returns the pending pin only if it was dropped on the version being shown. */
+export function pinForVersion(pin: { versionId: string; x: number; y: number } | null, versionId: string) {
+  return pin && pin.versionId === versionId ? { x: pin.x, y: pin.y } : null;
+}

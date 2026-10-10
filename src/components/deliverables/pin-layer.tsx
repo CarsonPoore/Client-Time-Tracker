@@ -1,12 +1,12 @@
 "use client";
-import { pinFromClick } from "@/lib/revisions";
+import { hasPin, pinFromClick } from "@/lib/revisions";
 import type { CommentRow } from "@/lib/types";
 
 export function PinLayer({ src, alt, comments, onPick, picked }: {
   src: string; alt: string; comments: CommentRow[];
   onPick: ((p: { x: number; y: number }) => void) | null; picked: { x: number; y: number } | null;
 }) {
-  const pins = comments.filter((c) => c.pin_x != null && c.pin_y != null);
+  const pins = comments.filter(hasPin);
   return (
     <div className="relative inline-block max-w-full">
       {/* eslint-disable-next-line @next/next/no-img-element */}

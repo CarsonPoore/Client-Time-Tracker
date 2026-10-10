@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { DeliverableThread } from "@/lib/portal-data";
-import { isImagePath, revisionLabel } from "@/lib/revisions";
+import { isImagePath, pinForVersion, revisionLabel } from "@/lib/revisions";
 import { CommentComposer } from "./comment-composer";
 import { CommentThread } from "./comment-thread";
 import { DecisionBar } from "./decision-bar";
@@ -20,10 +20,11 @@ export function DeliverableWorkspace({ thread, fileUrls, attachmentUrls, role, r
   role: "client" | "admin"; readOnly: boolean; selectedVersionId?: string; actions: WorkspaceActions; hrefFor?: (id: string) => string;
 }) {
   const { deliverable: d, versions, comments, names } = thread;
-  const [pin, setPin] = useState<{ x: number; y: number } | null>(null);
+  const [pendingPin, setPendingPin] = useState<{ versionId: string; x: number; y: number } | null>(null);
   const current = versions.find((v) => v.id === d.current_version_id) ?? versions[versions.length - 1];
   if (!current) return <p className="text-sm text-muted">No versions yet.</p>;
   const selected = versions.find((v) => v.id === selectedVersionId) ?? current;
+  const pin = pinForVersion(pendingPin, selected.id);
   const label = revisionLabel(current.number, d.revision_limit);
   const url = fileUrls[selected.id] ?? null;
   const canWrite = !readOnly && !!actions;
@@ -41,7 +42,7 @@ export function DeliverableWorkspace({ thread, fileUrls, attachmentUrls, role, r
         {selected.notes && <p className="whitespace-pre-wrap">{selected.notes}</p>}
         {url && isImagePath(selected.file_path)
           ? <PinLayer src={url} alt={`${d.title} v${selected.number}`} comments={comments[selected.id] ?? []}
-              onPick={canWrite ? setPin : null} picked={pin} />
+              onPick={canWrite ? (p) => setPendingPin({ versionId: selected.id, ...p }) : null} picked={pin} />
           : url ? <a className="text-link underline" href={url}>Download v{selected.number}</a> : null}
         {selected.link_url && <a className="block text-link underline" href={selected.link_url} rel="noopener noreferrer" target="_blank">Open link</a>}
         {selected.status === "approved" && selected.decided_at &&
@@ -53,7 +54,7 @@ export function DeliverableWorkspace({ thread, fileUrls, attachmentUrls, role, r
       <section aria-label="Comments" className="space-y-4">
         <h2 className="text-lg font-semibold">Comments on v{selected.number}</h2>
         <CommentThread comments={comments[selected.id] ?? []} names={names} attachmentUrls={attachmentUrls} viewerRole={role} />
-        {canWrite && <CommentComposer key={selected.id} versionId={selected.id} deliverableId={d.id} actions={actions!} pin={pin} clearPin={() => setPin(null)} />}
+        {canWrite && <CommentComposer key={selected.id} versionId={selected.id} deliverableId={d.id} actions={actions!} pin={pin} clearPin={() => setPendingPin(null)} />}
       </section>
     </div>
   );

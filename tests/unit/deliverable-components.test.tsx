@@ -53,3 +53,17 @@ describe("DeliverableWorkspace", () => {
     expect(html).not.toContain("Approve");
   });
 });
+
+import { hasPin, pinForVersion } from "@/lib/revisions";
+describe("pin helpers", () => {
+  it("hasPin requires both coordinates", () => {
+    expect(hasPin({ pin_x: 1, pin_y: null })).toBe(false);
+    expect(hasPin({ pin_x: 1, pin_y: 2 })).toBe(true);
+  });
+  it("pending pin is ignored on other versions", () => {
+    const p = { versionId: "v2", x: 10, y: 20 };
+    expect(pinForVersion(p, "v2")).toEqual({ x: 10, y: 20 });
+    expect(pinForVersion(p, "v1")).toBeNull();
+    expect(pinForVersion(null, "v1")).toBeNull();
+  });
+});

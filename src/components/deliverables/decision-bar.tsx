@@ -3,7 +3,8 @@ import { useActionState, useState } from "react";
 import { Button, FormMessage, Textarea } from "@/components/ui";
 
 type DecideResult = { error: string | null; message?: string };
-type Decide = (versionId: string, deliverableId: string, prev: any, form: FormData) => Promise<{ error: string | null; message?: string }>;
+import type { WorkspaceActions } from "./deliverable-workspace";
+type Decide = NonNullable<NonNullable<WorkspaceActions>["decide"]>;
 
 export function DecisionBar({ versionId, deliverableId, decide }: { versionId: string; deliverableId: string; decide?: Decide }) {
   const [changes, setChanges] = useState(false);

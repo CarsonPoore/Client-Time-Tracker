@@ -1,3 +1,4 @@
+import { hasPin } from "@/lib/revisions";
 import type { CommentRow } from "@/lib/types";
 
 export function authorName(c: CommentRow, names: Record<string, string>, viewerRole: "client" | "admin") {
@@ -13,7 +14,7 @@ export function CommentThread({ comments, names, attachmentUrls, viewerRole }: {
   return (
     <ol className="space-y-4">
       {comments.map((c) => {
-        const pinNo = c.pin_x != null ? ++pin : null;
+        const pinNo = hasPin(c) ? ++pin : null;
         return (
           <li key={c.id} id={`comment-${c.id}`} className="rounded-lg border border-line bg-surface p-3">
             <div className="flex flex-wrap items-center gap-2 text-sm">
