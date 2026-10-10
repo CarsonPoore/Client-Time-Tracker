@@ -8,7 +8,8 @@ export async function loadDigest(clientId: string, clientName: string, now: Date
   const today = now.toISOString().slice(0, 10);
   const inAWeek = new Date(now.getTime() + 7 * 86400_000).toISOString().slice(0, 10);
 
-  const { data: projects } = await db.from("projects").select("id, name").eq("client_id", clientId).eq("archived", false);
+  const { data: projects, error: projectsError } = await db.from("projects").select("id, name").eq("client_id", clientId).eq("archived", false);
+  if (projectsError) throw new Error(`Digest query "projects" failed: ${projectsError.message}`);
   const ids = (projects ?? []).map((p) => p.id);
   const name = new Map((projects ?? []).map((p) => [p.id, p.name as string]));
   if (!ids.length) return { clientName, updates: [], awaiting: [], statusChanges: [], dueSoon: [] };
@@ -19,6 +20,10 @@ export async function loadDigest(clientId: string, clientName: string, now: Date
     db.from("tasks").select("project_id, name, status").in("project_id", ids).eq("client_visible", true).eq("deleted", false).gte("status_changed_at", weekAgo),
     db.from("tasks").select("project_id, name, due_date").in("project_id", ids).eq("client_visible", true).eq("deleted", false).gte("due_date", today).lte("due_date", inAWeek).order("due_date"),
   ]);
+
+  for (const [label, r] of [["updates", updates], ["deliverables", awaiting], ["status changes", changed], ["due soon", due]] as const) {
+    if (r.error) throw new Error(`Digest query "${label}" failed: ${r.error.message}`);
+  }
 
   return {
     clientName,

@@ -8,7 +8,7 @@ export async function sendEmail(msg: { to: string | string[]; subject: string; h
   const env = serverEnv();
   resend ??= new Resend(env.RESEND_API_KEY);
   try {
-    const { error } = await resend.emails.send({ from: env.EMAIL_FROM, ...msg });
+    const { error } = await resend.emails.send({ from: env.EMAIL_FROM, ...msg, subject: msg.subject.replace(/[\r\n]+/g, " ") });
     if (error) console.error("Email send failed", error);
     return !error;
   } catch (err) {
