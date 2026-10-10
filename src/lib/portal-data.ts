@@ -75,15 +75,16 @@ export interface DeliverableThread {
 
 /**
  * Names: a client's RLS only exposes their own profile row, so pass an admin `namesDb` from server code.
- * In a client context (includeDrafts false) names are limited to profiles of this deliverable's client, so
- * admin authors get no entry (the UI shows them as "Carson"). In an admin context all authors are resolved.
+ * By default (scopeNamesToClient true, fail closed) names are limited to profiles of this deliverable's client, so
+ * admin authors get no entry (the UI shows them as "Carson"). Admin pages pass scopeNamesToClient: false so all authors resolve.
  */
 export async function loadDeliverableThread(
-  db: PortalDb, id: string, opts: { includeDrafts: boolean; namesDb?: PortalDb },
+  db: PortalDb, id: string, opts: { includeDrafts: boolean; namesDb?: PortalDb; scopeNamesToClient?: boolean },
 ): Promise<DeliverableThread | null> {
   const { data: deliverable } = await db.from("deliverables")
     .select("*, project:projects(id, name, client_id, archived)").eq("id", id).maybeSingle();
-  if (!deliverable) return null;
+  // A client's RLS hides archived projects, so the join can come back null.
+  if (!deliverable || !deliverable.project) return null;
   let vq = db.from("deliverable_versions").select("*").eq("deliverable_id", id);
   if (!opts.includeDrafts) vq = vq.neq("status", "draft");
   const { data: versions } = await vq.order("number", { ascending: true });
@@ -101,7 +102,7 @@ export async function loadDeliverableThread(
   let names: Record<string, string> = {};
   if (userIds.length) {
     let pq = (opts.namesDb ?? db).from("profiles").select("user_id, full_name, email").in("user_id", userIds);
-    if (!opts.includeDrafts) pq = pq.eq("client_id", deliverable.project.client_id);
+    if (opts.scopeNamesToClient ?? true) pq = pq.eq("client_id", deliverable.project.client_id);
     const { data: people } = await pq;
     names = Object.fromEntries((people ?? []).map((p: { user_id: string; full_name: string | null; email: string }) => [p.user_id, p.full_name || p.email]));
   }
@@ -109,7 +110,7 @@ export async function loadDeliverableThread(
 }
 
 export async function loadPortalDeliverable(db: PortalDb, clientId: string, id: string, namesDb?: PortalDb): Promise<DeliverableThread | null> {
-  const t = await loadDeliverableThread(db, id, { includeDrafts: false, namesDb });
+  const t = await loadDeliverableThread(db, id, { includeDrafts: false, namesDb, scopeNamesToClient: true });
   const p = t?.deliverable.project;
   if (!t || !p || p.client_id !== clientId || p.archived || t.deliverable.status === "draft" || !t.versions.length) return null;
   return t;

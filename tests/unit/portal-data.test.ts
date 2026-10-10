@@ -146,7 +146,7 @@ describe("loadDeliverableThread", () => {
 
   it("admin view includes drafts and resolves admin names", async () => {
     const { db } = fakeDb(base());
-    const t = await loadDeliverableThread(db, "d1", { includeDrafts: true });
+    const t = await loadDeliverableThread(db, "d1", { includeDrafts: true, scopeNamesToClient: false });
     expect(t!.versions.map((v) => v.number)).toEqual([1, 2, 3]);
     expect(t!.names).toEqual({ u1: "dana@x.com", admin1: "Carson" });
   });
@@ -156,6 +156,24 @@ describe("loadDeliverableThread", () => {
     const { db: namesDb } = fakeDb(base());
     const t = await loadPortalDeliverable(db, "c1", "d1", namesDb);
     expect(t!.names.u1).toBe("dana@x.com");
+  });
+
+  it("scopes names to the client by default, even with drafts", async () => {
+    const { db } = fakeDb(base());
+    const t = await loadDeliverableThread(db, "d1", { includeDrafts: true });
+    expect(t!.names).toEqual({ u1: "dana@x.com" });
+  });
+
+  it("returns null when the project join is null (archived, hidden by RLS)", async () => {
+    const b = base();
+    b.deliverables = [{ ...b.deliverables[0], project: null } as never];
+    expect(await loadPortalDeliverable(fakeDb(b).db, "c1", "d1")).toBeNull();
+  });
+
+  it("returns null when every version is a draft", async () => {
+    const b = base();
+    b.deliverable_versions = b.deliverable_versions.map((v) => ({ ...v, status: "draft" }));
+    expect(await loadPortalDeliverable(fakeDb(b).db, "c1", "d1")).toBeNull();
   });
 
   it("returns null for another client's, archived or draft deliverable", async () => {
