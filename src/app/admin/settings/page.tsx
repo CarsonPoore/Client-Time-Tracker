@@ -48,7 +48,7 @@ export default async function SettingsPage() {
           ) : null}
           <ul className="mt-4 divide-y divide-line">
             {spaces.map((s) => (
-              <li key={s.id} className="py-2">
+              <li key={`${s.id}:${state.get(s.id) ?? "new"}`} className="py-2">
                 <SpaceToggle spaceId={s.id} name={s.name} checked={state.get(s.id) ?? false} isNew={!state.has(s.id)} />
               </li>
             ))}

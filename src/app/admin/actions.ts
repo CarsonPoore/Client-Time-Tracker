@@ -145,7 +145,7 @@ export async function connectWebhook(): Promise<ActionResult> {
     return { error: "Couldn't save the webhook. Try again." };
   }
   if (existing && existing.id !== hook.id) {
-    await cu.deleteWebhook(existing.id).catch(() => undefined); // old hook may already be gone (404)
+    await cu.deleteWebhook(existing.id).catch((e) => console.error("connectWebhook: old webhook delete failed (may already be gone)", e));
   }
   revalidatePath("/admin/settings");
   return { error: null, message: "ClickUp is now sending live updates." };
