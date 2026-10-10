@@ -63,10 +63,10 @@ export function mapList(list: CUList, clientId: string): ProjectInput {
 }
 
 export function parseClientComment(text: string): string | null {
-  const match = /^\s*#client(?![a-z0-9_])[\s:\-–—]*/i.exec(text);
+  const match = /^\s*#client(?=\s|:|$)[\s:]*(?:[-–—]+\s+)?/i.exec(text);
   if (!match) return null;
   const rest = text.slice(match[0].length).trim();
-  return rest || null;
+  return /[a-z0-9]/i.test(rest) ? rest : null;
 }
 
 export function isDefaultClientSpace(name: string): boolean {

@@ -53,6 +53,11 @@ describe("parseClientComment", () => {
     expect(parseClientComment("#client")).toBeNull();
     expect(parseClientComment("internal note #client")).toBeNull();
     expect(parseClientComment("#clientele meeting")).toBeNull();
+    expect(parseClientComment("#client-internal: do not share")).toBeNull();
+    expect(parseClientComment("#client's budget is too low, push back")).toBeNull();
+    expect(parseClientComment("#client/agency only")).toBeNull();
+    expect(parseClientComment("#client.")).toBeNull();
+    expect(parseClientComment("#client: ...")).toBeNull();
   });
 });
 
