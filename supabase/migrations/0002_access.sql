@@ -113,3 +113,17 @@ grant execute on function public.decide_deliverable(uuid, public.deliverable_sta
 
 revoke all on all tables in schema public from anon;
 grant select, insert, update, delete on all tables in schema public to authenticated;
+
+create function public.guard_profile_privileges() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if (new.role is distinct from old.role or new.client_id is distinct from old.client_id)
+     and auth.uid() is not null
+     and not public.is_admin() then
+    raise exception 'profile_privileges_locked' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+
+create trigger profiles_guard_privileges before update on public.profiles
+  for each row execute function public.guard_profile_privileges();

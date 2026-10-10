@@ -107,6 +107,23 @@ describe("privilege escalation", () => {
   });
 });
 
+describe("profile privilege trigger", () => {
+  it("trigger blocks role/client_id change even if RLS would allow the update", async () => {
+    await expect(asUser(db, ALICE, async (tx) => {
+      await tx.exec("reset role");
+      await tx.exec("create policy tmp_open on public.profiles for update to authenticated using (true) with check (true)");
+      await tx.exec("set local role authenticated");
+      return tx.query("update profiles set role = 'admin', client_id = null where user_id = $1", [ALICE]);
+    })).rejects.toThrow(/profile_privileges_locked/);
+  });
+
+  it("admin can still change a client's client_id", async () => {
+    const res = await asUser(db, ADMIN, (tx) =>
+      tx.query<{ client_id: string }>("update profiles set client_id = $1 where user_id = $2 returning client_id", [CLIENT_A, BOB]));
+    expect(res.rows[0].client_id).toBe(CLIENT_A);
+  });
+});
+
 describe("requests", () => {
   it("client can file a request for own project", async () => {
     const res = await asUser(db, ALICE, (tx) =>
@@ -129,6 +146,11 @@ describe("requests", () => {
 });
 
 describe("decide_deliverable", () => {
+  it("anonymous cannot call decide_deliverable", async () => {
+    await expect(asUser(db, null, (tx) =>
+      tx.query("select * from decide_deliverable($1, 'approved', null)", [DEL_AWAIT]))).rejects.toThrow(/permission denied/);
+  });
+
   it("decide_deliverable requires feedback for changes", async () => {
     await expect(asUser(db, ALICE, (tx) =>
       tx.query("select * from decide_deliverable($1, 'changes_requested', '   ')", [DEL_AWAIT])))
