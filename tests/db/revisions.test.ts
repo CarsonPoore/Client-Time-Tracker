@@ -240,3 +240,28 @@ describe("publish_version / decide_version", () => {
     expect(v.rows[0].status).toBe("approved");
   });
 });
+
+describe("activity", () => {
+  const activity = async (types: string[]) =>
+    (await db.query<{ type: string; summary: string }>(
+      "select type, summary from client_activity where client_id = $1 and type = any($2) order by created_at, summary", [A, types])).rows;
+
+  it("logs publish, decision and comment once each", async () => {
+    const before = (await db.query<{ n: number }>("select count(*)::int n from client_activity")).rows[0].n;
+    const v = await rpc<{ id: string; number: number }>(ADMIN, "select * from publish_version($1, null, 'https://x/v4', null)", [D_LINK]);
+    await rpc(ALICE, "select * from decide_version($1, 'changes_requested', 'More contrast')", [v.id]);
+    await asUser(db, ALICE, (tx) => tx.query(
+      "insert into deliverable_comments (version_id, author_id, author_role, body) values ($1, $2, 'client', 'Also the margin')", [v.id, ALICE]));
+    const after = (await db.query<{ n: number }>("select count(*)::int n from client_activity")).rows[0].n;
+    expect(after - before).toBe(3); // the decision comment does not add a separate comment_added row
+    const rows = await activity(["version_published", "changes_requested", "comment_added"]);
+    expect(rows.map((r) => r.summary)).toEqual(expect.arrayContaining([
+      `Figma v${v.number} sent for approval`, `Figma v${v.number}: changes requested`, `Client commented on Figma v${v.number}`]));
+  });
+
+  it("backfill rows are not duplicated by triggers", async () => {
+    const r = await db.query<{ n: number }>(
+      "select count(*)::int n from client_activity where type = 'version_approved' and summary = 'Header v1 approved'");
+    expect(r.rows[0].n).toBe(1);
+  });
+});

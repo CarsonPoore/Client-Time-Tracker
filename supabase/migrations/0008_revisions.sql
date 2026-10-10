@@ -296,3 +296,55 @@ revoke all on function public.publish_version(uuid, text, text, text) from publi
 grant execute on function public.publish_version(uuid, text, text, text) to authenticated;
 revoke all on function public.decide_deliverable(uuid, public.deliverable_status, text) from public, anon;
 grant execute on function public.decide_deliverable(uuid, public.deliverable_status, text) to authenticated;
+
+-- Activity (created after backfill so backfill does not double-log)
+create function public.log_version_activity() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  t text; s text; cid uuid; title text;
+begin
+  select p.client_id, d.title into cid, title
+  from public.deliverables d join public.projects p on p.id = d.project_id
+  where d.id = new.deliverable_id;
+
+  if new.status = 'awaiting_approval' and (tg_op = 'INSERT' or old.status is distinct from new.status) then
+    t := 'version_published'; s := title || ' v' || new.number || ' sent for approval';
+  elsif tg_op = 'UPDATE' and old.status is distinct from new.status and new.status = 'approved' then
+    t := 'version_approved'; s := title || ' v' || new.number || ' approved';
+  elsif tg_op = 'UPDATE' and old.status is distinct from new.status and new.status = 'changes_requested' then
+    t := 'changes_requested'; s := title || ' v' || new.number || ': changes requested';
+  else
+    return new;
+  end if;
+
+  insert into public.client_activity (client_id, type, ref_table, ref_id, actor_id, summary)
+  values (cid, t, 'deliverable_versions', new.id, auth.uid(), s);
+  return new;
+end $$;
+
+create trigger deliverable_versions_activity after insert or update of status on public.deliverable_versions
+  for each row execute function public.log_version_activity();
+
+create function public.log_comment_activity() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  cid uuid; title text; n int;
+begin
+  if new.kind <> 'comment' then return new; end if;
+  select p.client_id, d.title, v.number into cid, title, n
+  from public.deliverable_versions v
+  join public.deliverables d on d.id = v.deliverable_id
+  join public.projects p on p.id = d.project_id
+  where v.id = new.version_id;
+  insert into public.client_activity (client_id, type, ref_table, ref_id, actor_id, summary)
+  values (cid, 'comment_added', 'deliverable_comments', new.id, new.author_id,
+          case new.author_role when 'client' then 'Client' else 'Carson' end || ' commented on ' || title || ' v' || n);
+  return new;
+end $$;
+
+create trigger deliverable_comments_activity after insert on public.deliverable_comments
+  for each row execute function public.log_comment_activity();
+
+revoke all on function public.log_version_activity() from public, anon, authenticated;
+revoke all on function public.log_comment_activity() from public, anon, authenticated;
+revoke all on function public.mirror_version_status() from public, anon, authenticated;
