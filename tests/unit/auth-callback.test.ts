@@ -36,3 +36,16 @@ describe("resolveCallback", () => {
       .toEqual({ kind: "deny", deleteUser: false });
   });
 });
+
+const { resolveConfirm } = await import("@/lib/auth-callback");
+describe("resolveConfirm", () => {
+  it("sends clients to set-password", () => {
+    expect(resolveConfirm({ profile: { role: "client" }, profileError: false })).toBe("set_password");
+  });
+  it("denies admin, team, no profile and lookup error", () => {
+    expect(resolveConfirm({ profile: { role: "admin" }, profileError: false })).toBe("deny");
+    expect(resolveConfirm({ profile: { role: "team" }, profileError: false })).toBe("deny");
+    expect(resolveConfirm({ profile: null, profileError: false })).toBe("deny");
+    expect(resolveConfirm({ profile: { role: "client" }, profileError: true })).toBe("deny");
+  });
+});

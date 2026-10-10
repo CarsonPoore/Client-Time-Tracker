@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { serverEnv } from "@/lib/env";
 import type { Role } from "@/lib/types";
 
 export interface Viewer {
@@ -51,6 +52,7 @@ export async function requireAdmin(): Promise<Viewer> {
   const viewer = await getViewer();
   if (!viewer) redirect("/login");
   if (viewer.role !== "admin") redirect(homeForRole(viewer.role));
+  if (!isAdminEmail(viewer.email, serverEnv().ADMIN_EMAILS)) redirect("/login?error=no_access");
   return viewer;
 }
 

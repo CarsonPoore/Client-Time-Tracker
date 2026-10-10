@@ -25,3 +25,11 @@ export function resolveCallback(input: {
   }
   return { kind: "deny", deleteUser: false };
 }
+
+export function resolveConfirm(input: {
+  profile: { role: Role } | null;
+  profileError: boolean;
+}): "set_password" | "deny" {
+  if (input.profileError || !input.profile) return "deny";
+  return input.profile.role === "client" ? "set_password" : "deny";
+}
