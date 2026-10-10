@@ -68,3 +68,103 @@ describe("backfill", () => {
     await db.query(`update deliverable_versions set status = 'awaiting_approval' where id = $1`, [v.rows[0].current_version_id]);
   });
 });
+
+const versionsOf = (user: string | null, deliverable: string) =>
+  asUser(db, user, (tx) => tx.query<{ number: number }>(
+    "select number from deliverable_versions where deliverable_id = $1 order by number", [deliverable])).then((r) => r.rows.map((x) => x.number));
+
+const currentVersion = async (deliverable: string) =>
+  (await db.query<{ current_version_id: string }>("select current_version_id from deliverables where id = $1", [deliverable])).rows[0].current_version_id;
+
+describe("rls", () => {
+  it("client sees own non-draft versions only", async () => {
+    expect(await versionsOf(ALICE, D_FEEDBACK)).toEqual([1]);
+    expect(await versionsOf(ALICE, D_DRAFT)).toEqual([]);
+    expect(await versionsOf(ALICE, D_BOB)).toEqual([]);
+    await expect(versionsOf(null, D_FEEDBACK)).rejects.toThrow(/permission denied/);
+    expect(await versionsOf(ADMIN, D_DRAFT)).toEqual([1]);
+  });
+
+  it("a new draft version is hidden while earlier versions stay visible", async () => {
+    await db.query(`insert into deliverable_versions (deliverable_id, number, status) values ($1, 2, 'draft')`, [D_APPROVED]);
+    expect(await versionsOf(ALICE, D_APPROVED)).toEqual([1]);
+  });
+
+  it("client reads comments only on visible versions", async () => {
+    const r = await asUser(db, ALICE, (tx) => tx.query("select body from deliverable_comments"));
+    expect(r.rows).toEqual([{ body: "Make it bluer" }]);
+    const bob = await asUser(db, BOB, (tx) => tx.query("select body from deliverable_comments"));
+    expect(bob.rows).toEqual([]);
+    await expect(asUser(db, null, (tx) => tx.query("select body from deliverable_comments"))).rejects.toThrow(/permission denied/);
+  });
+
+  it("client can comment on own visible version", async () => {
+    const v = await currentVersion(D_FEEDBACK);
+    await asUser(db, ALICE, (tx) => tx.query(
+      `insert into deliverable_comments (version_id, author_id, author_role, body, pin_x, pin_y) values ($1, $2, 'client', 'Love the font', 10.5, 90)`, [v, ALICE]));
+  });
+
+  it.each([
+    ["forged decision kind", `'client', 'x', 'decision'`, "ALICE"],
+    ["forged admin role", `'admin', 'x', 'comment'`, "ALICE"],
+    ["forged author", `'client', 'x', 'comment'`, "BOB_ID"],
+  ])("rejects %s", async (_n, values, author) => {
+    const v = await currentVersion(D_FEEDBACK);
+    const authorId = author === "ALICE" ? ALICE : BOB;
+    await expect(asUser(db, ALICE, (tx) => tx.query(
+      `insert into deliverable_comments (version_id, author_id, author_role, body, kind) values ($1, $2, ${values})`, [v, authorId]))).rejects.toThrow();
+  });
+
+  it("rejects comments on another client's version and on drafts", async () => {
+    const bobV = await currentVersion(D_BOB);
+    await expect(asUser(db, ALICE, (tx) => tx.query(
+      `insert into deliverable_comments (version_id, author_id, author_role, body) values ($1, $2, 'client', 'hi')`, [bobV, ALICE]))).rejects.toThrow();
+    const draftV = await currentVersion(D_DRAFT);
+    await expect(asUser(db, ALICE, (tx) => tx.query(
+      `insert into deliverable_comments (version_id, author_id, author_role, body) values ($1, $2, 'client', 'hi')`, [draftV, ALICE]))).rejects.toThrow();
+  });
+
+  it("rejects pins outside 0-100 and half pins", async () => {
+    const v = await currentVersion(D_FEEDBACK);
+    for (const pins of ["101, 5", "-1, 5", "5, null"]) {
+      await expect(asUser(db, ALICE, (tx) => tx.query(
+        `insert into deliverable_comments (version_id, author_id, author_role, body, pin_x, pin_y) values ($1, $2, 'client', 'x', ${pins})`, [v, ALICE]))).rejects.toThrow();
+    }
+  });
+
+  it("attachments: own comment only, path must match", async () => {
+    const v = await currentVersion(D_FEEDBACK);
+    const mine = (await asUser(db, ALICE, (tx) => tx.query<{ id: string }>(
+      `insert into deliverable_comments (version_id, author_id, author_role, body) values ($1, $2, 'client', 'see file') returning id`, [v, ALICE]))).rows[0].id;
+    await asUser(db, ALICE, (tx) => tx.query(
+      `insert into comment_attachments (comment_id, storage_path, name, size_bytes, mime_type) values ($1, $2, 'a.png', 10, 'image/png')`,
+      [mine, `${SITE}/comments/${mine}/1-a.png`]));
+    await expect(asUser(db, ALICE, (tx) => tx.query(
+      `insert into comment_attachments (comment_id, storage_path, name) values ($1, $2, 'b.png')`,
+      [mine, `${BRAND}/comments/${mine}/1-b.png`]))).rejects.toThrow();
+    const adminComment = (await asUser(db, ADMIN, (tx) => tx.query<{ id: string }>(
+      `insert into deliverable_comments (version_id, author_id, author_role, body) values ($1, $2, 'admin', 'ok') returning id`, [v, ADMIN]))).rows[0].id;
+    await expect(asUser(db, ALICE, (tx) => tx.query(
+      `insert into comment_attachments (comment_id, storage_path, name) values ($1, $2, 'c.png')`,
+      [adminComment, `${SITE}/comments/${adminComment}/1-c.png`]))).rejects.toThrow();
+    const bob = await asUser(db, BOB, (tx) => tx.query("select * from comment_attachments"));
+    expect(bob.rows).toEqual([]);
+  });
+
+  it("clients cannot update or delete comments", async () => {
+    const r = await asUser(db, ALICE, (tx) => tx.query("update deliverable_comments set body = 'edited' returning id"));
+    expect(r.rows).toEqual([]);
+    const d = await asUser(db, ALICE, (tx) => tx.query("delete from deliverable_comments returning id"));
+    expect(d.rows).toEqual([]);
+  });
+
+  it("client_activity is admin only", async () => {
+    expect((await asUser(db, ALICE, (tx) => tx.query("select * from client_activity"))).rows).toEqual([]);
+    expect((await asUser(db, ADMIN, (tx) => tx.query("select * from client_activity"))).rows.length).toBeGreaterThan(0);
+  });
+
+  it("clients cannot write versions directly", async () => {
+    const r = await asUser(db, ALICE, (tx) => tx.query("update deliverable_versions set status = 'approved' returning id"));
+    expect(r.rows).toEqual([]);
+  });
+});

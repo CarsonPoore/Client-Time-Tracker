@@ -107,3 +107,59 @@ end $$;
 
 create trigger deliverable_versions_mirror after insert or update of status on public.deliverable_versions
   for each row execute function public.mirror_version_status();
+
+-- RLS
+alter table public.deliverable_versions enable row level security;
+alter table public.deliverable_comments enable row level security;
+alter table public.comment_attachments enable row level security;
+alter table public.client_activity enable row level security;
+
+create function public.version_client_id(p_version_id uuid) returns uuid
+language sql stable security definer set search_path = public as $$
+  select p.client_id
+  from public.deliverable_versions v
+  join public.deliverables d on d.id = v.deliverable_id
+  join public.projects p on p.id = d.project_id
+  where v.id = p_version_id and v.status <> 'draft' and not p.archived
+$$;
+revoke all on function public.version_client_id(uuid) from public, anon;
+grant execute on function public.version_client_id(uuid) to authenticated;
+
+create policy admin_all on public.deliverable_versions for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy admin_all on public.deliverable_comments for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy admin_all on public.comment_attachments for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy admin_all on public.client_activity for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+create policy client_read on public.deliverable_versions for select to authenticated
+  using (public.version_client_id(id) = public.auth_client_id());
+
+create policy client_read on public.deliverable_comments for select to authenticated
+  using (public.version_client_id(version_id) = public.auth_client_id());
+
+create policy client_insert on public.deliverable_comments for insert to authenticated
+  with check (
+    public.version_client_id(version_id) = public.auth_client_id()
+    and author_id = auth.uid()
+    and author_role = 'client'
+    and kind = 'comment'
+  );
+
+create policy client_read on public.comment_attachments for select to authenticated
+  using (exists (
+    select 1 from public.deliverable_comments c
+    where c.id = comment_id and public.version_client_id(c.version_id) = public.auth_client_id()));
+
+create policy client_insert on public.comment_attachments for insert to authenticated
+  with check (exists (
+    select 1 from public.deliverable_comments c
+    join public.deliverable_versions v on v.id = c.version_id
+    join public.deliverables d on d.id = v.deliverable_id
+    where c.id = comment_id
+      and c.author_id = auth.uid()
+      and public.version_client_id(c.version_id) = public.auth_client_id()
+      and storage_path like d.project_id::text || '/comments/' || c.id::text || '/%'));
+
+grant select, insert, update, delete on public.deliverable_versions, public.deliverable_comments,
+  public.comment_attachments, public.client_activity to authenticated;
+revoke all on public.deliverable_versions, public.deliverable_comments,
+  public.comment_attachments, public.client_activity from anon;
