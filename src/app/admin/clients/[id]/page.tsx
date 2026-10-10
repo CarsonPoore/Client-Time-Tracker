@@ -5,6 +5,8 @@ import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ClientForm, InviteButton } from "./client-forms";
+import { ActivityCard } from "./activity-card";
+import { loadClientActivity } from "@/lib/admin-data";
 import { PortalHoursToggle } from "./portal-hours-toggle";
 import { QuickBooksLink } from "./quickbooks-link";
 import { suggestCustomer, type QBCustomer } from "@/lib/quickbooks/client";
@@ -18,6 +20,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
   if (!client) notFound();
   const { data: projects } = await supabase.from("projects").select("id, name, status, due_date, archived")
     .eq("client_id", id).order("archived").order("name");
+  const activity = await loadClientActivity(supabase, id);
 
   let portalStatus = "Not invited";
   if (client.portal_user_id) {
@@ -89,6 +92,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
           </Card>
         </div>
       </div>
+      <div className="mt-6"><ActivityCard rows={activity.rows} nextBefore={activity.nextBefore} clientId={client.id} /></div>
     </>
   );
 }

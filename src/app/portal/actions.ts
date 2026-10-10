@@ -10,19 +10,6 @@ import { buildStoragePath, createSignedUpload, removeObject } from "@/lib/storag
 
 export type PortalResult = { error: string | null; message?: string };
 
-export async function decideDeliverable(deliverableId: string, _prev: PortalResult, form: FormData): Promise<PortalResult> {
-  await requireClient();
-  const parsed = parseDecision(form);
-  if (!parsed.ok) return { error: parsed.error };
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("decide_deliverable", { p_id: deliverableId, p_decision: parsed.decision, p_feedback: parsed.feedback });
-  if (error) return { error: decisionErrorMessage(error.message) };
-  await Promise.allSettled([postDecisionToClickUp(deliverableId), notifyAdminDecision(deliverableId)]);
-  revalidatePath(`/portal/deliverables/${deliverableId}`);
-  revalidatePath("/portal");
-  return { error: null, message: parsed.decision === "approved" ? "Approved. Thank you!" : "Got it. We'll make those changes." };
-}
-
 export async function decideVersion(versionId: string, _deliverableId: string, _prev: PortalResult, form: FormData): Promise<PortalResult> {
   await requireClient();
   const parsed = parseDecision(form);

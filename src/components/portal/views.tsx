@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { Card, EmptyState, LinkButton, PageHeader, StatusPill, formatDate } from "@/components/ui";
-import type { DeliverableThread, PortalHours, loadPortalHome, loadPortalProject } from "@/lib/portal-data";
+import type { PortalHours, loadPortalHome, loadPortalProject } from "@/lib/portal-data";
 import { formatHours } from "@/lib/time";
-import { DecisionForm } from "./decision-form";
 import { RequestForm } from "./request-form";
 
 /**
@@ -173,46 +172,6 @@ export function PortalProjectView({ data, mode }: { data: NonNullable<Awaited<Re
             ) : <EmptyState title="No files yet" />}
           </Card>
         </div>
-      </div>
-    </>
-  );
-}
-
-export function PortalDeliverableView({ t, fileUrl, mode }: { t: DeliverableThread; fileUrl: string | null; mode: PortalViewMode }) {
-  // Interim (Task 9 replaces this): show the current version, falling back to the last one.
-  const d = t.deliverable;
-  const v = t.versions.find((x) => x.id === d.current_version_id) ?? t.versions[t.versions.length - 1];
-  const feedback = [...(t.comments[v?.id ?? ""] ?? [])].reverse().find((c) => c.kind === "decision")?.body ?? null;
-  const isImage = v?.file_path ? /\.(png|jpe?g|gif|webp|svg)$/i.test(v.file_path) : false;
-  const isPdf = v?.file_path ? /\.pdf$/i.test(v.file_path) : false;
-  const safeLink = v?.link_url && /^https?:\/\//i.test(v.link_url) ? v.link_url : null;
-
-  return (
-    <>
-      <p className="mb-2 text-sm"><Link href={`${mode.base}/projects/${d.project.id}`} className="font-semibold text-link">← {d.project.name}</Link></p>
-      <PageHeader eyebrow="Deliverable" title={d.title} actions={<StatusPill status={d.status} />} />
-      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
-        <Card className="space-y-4">
-          {d.description ? <p className="whitespace-pre-line">{d.description}</p> : null}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {fileUrl && isImage ? <img src={fileUrl} alt={d.title} className="w-full rounded-lg border border-line" /> : null}
-          {fileUrl && isPdf ? <iframe src={fileUrl} title={d.title} className="h-[70vh] w-full rounded-lg border border-line" /> : null}
-          <div className="flex flex-wrap gap-4 text-sm font-semibold">
-            {fileUrl ? <a href={fileUrl} target="_blank" rel="noreferrer" className="text-link">Download file</a> : null}
-            {safeLink ? <a href={safeLink} target="_blank" rel="noreferrer" className="text-link">Open link</a> : null}
-          </div>
-        </Card>
-        <Card>
-          {d.status === "awaiting_approval" ? (
-            <DecisionForm deliverableId={d.id} preview={mode.preview} />
-          ) : (
-            <div>
-              <p className="font-bold">{d.status === "approved" ? "You approved this" : "You requested changes"}</p>
-              <p className="text-sm text-muted">{formatDate(v?.decided_at ?? null)}</p>
-              {feedback ? <blockquote className="mt-3 border-l-2 border-gold pl-3 whitespace-pre-line">{feedback}</blockquote> : null}
-            </div>
-          )}
-        </Card>
       </div>
     </>
   );

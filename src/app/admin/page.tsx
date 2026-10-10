@@ -13,7 +13,7 @@ export default async function AdminDashboard() {
   const [awaiting, decided, requests, lastRun, time] = await Promise.all([
     supabase.from("deliverables").select("id, title, published_at, project:projects(id, name, client:clients(name))")
       .eq("status", "awaiting_approval").order("published_at", { ascending: true }),
-    supabase.from("deliverables").select("id, title, status, decided_at, client_feedback, project:projects(id, name, client:clients(name))")
+    supabase.from("deliverables").select("id, title, status, decided_at, project:projects(id, name, client:clients(name))")
       .in("status", ["approved", "changes_requested"]).order("decided_at", { ascending: false }).limit(8),
     supabase.from("requests").select("id, kind, body, created_at, project_id, client:clients(id, name)")
       .eq("status", "open").order("created_at", { ascending: false }),
@@ -57,7 +57,7 @@ export default async function AdminDashboard() {
                   return (
                     <li key={d.id} className="flex items-center justify-between gap-4 py-3">
                       <div>
-                        <Link href={`/admin/projects/${project.id}`} className="font-semibold hover:text-link">{d.title}</Link>
+                        <Link href={`/admin/deliverables/${d.id}`} className="font-semibold hover:text-link">{d.title}</Link>
                         <p className="text-sm text-muted">{project.client.name} · {project.name} · sent {formatDate(d.published_at)}</p>
                       </div>
                       <StatusPill status="awaiting_approval" />
@@ -100,7 +100,7 @@ export default async function AdminDashboard() {
                   return (
                     <li key={d.id}>
                       <div className="flex items-center justify-between gap-2">
-                        <Link href={`/admin/projects/${project.id}`} className="font-semibold">{d.title}</Link>
+                        <Link href={`/admin/deliverables/${d.id}`} className="font-semibold">{d.title}</Link>
                         <StatusPill status={d.status} />
                       </div>
                       <p className="text-sm text-muted">{project.client.name} · {formatDate(d.decided_at)}</p>

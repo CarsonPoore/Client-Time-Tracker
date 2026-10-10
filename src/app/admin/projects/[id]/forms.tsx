@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
 import { Button, Field, FormMessage, Input, StatusPill, Textarea } from "@/components/ui";
 import { FileUploader } from "@/components/file-uploader";
@@ -65,15 +66,15 @@ export function DeliverableCard({ deliverable: d, tasks }: { deliverable: Delive
   return (
     <div className="rounded-lg border border-line p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-bold">{d.title}</p>
+        <Link href={`/admin/deliverables/${d.id}`} className="font-bold hover:text-link">{d.title}</Link>
         <StatusPill status={d.status} />
       </div>
       {d.description ? <p className="mt-2 whitespace-pre-line text-sm text-muted">{d.description}</p> : null}
       <p className="mt-2 text-sm">
         {d.file_path ? "File attached" : "No file"}{d.link_url ? <> · <a className="font-semibold text-link" href={d.link_url} target="_blank" rel="noreferrer">Link</a></> : null}
       </p>
-      {d.status === "changes_requested" && d.client_feedback ? (
-        <blockquote className="mt-3 border-l-2 border-gold pl-3 text-sm whitespace-pre-line">{d.client_feedback}</blockquote>
+      {d.status === "changes_requested" ? (
+        <p className="mt-3 text-sm"><Link href={`/admin/deliverables/${d.id}`} className="font-semibold text-link">See the client&apos;s feedback</Link></p>
       ) : null}
       {editable ? <EditDeliverableForm d={d} tasks={tasks} /> : null}
       {editable ? (
