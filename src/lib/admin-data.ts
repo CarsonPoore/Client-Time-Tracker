@@ -30,11 +30,19 @@ async function resolveHrefs(db: PortalDb, rows: ActivityRow[]): Promise<Activity
   });
 }
 
+/** Keyset cursor is `${created_at}|${id}` so rows sharing a timestamp are never skipped. */
+const CURSOR = /^([0-9T:.+\- Z]+)\|([0-9A-Za-z-]+)$/;
+
 export async function loadClientActivity(db: PortalDb, clientId: string, before?: string): Promise<{ rows: ActivityItem[]; nextBefore: string | null }> {
   let q = db.from("client_activity").select("id, type, ref_table, ref_id, summary, created_at").eq("client_id", clientId);
-  if (before) q = q.lt("created_at", before);
-  const { data } = await q.order("created_at", { ascending: false }).limit(ACTIVITY_PAGE + 1);
+  const m = before ? CURSOR.exec(before) : null;
+  if (m) {
+    const [, ts, id] = m;
+    q = q.or(`created_at.lt."${ts}",and(created_at.eq."${ts}",id.lt."${id}")`);
+  }
+  const { data } = await q.order("created_at", { ascending: false }).order("id", { ascending: false }).limit(ACTIVITY_PAGE + 1);
   const rows = (data ?? []) as ActivityRow[];
   const page = rows.slice(0, ACTIVITY_PAGE);
-  return { rows: await resolveHrefs(db, page), nextBefore: rows.length > ACTIVITY_PAGE ? rows[ACTIVITY_PAGE - 1].created_at : null };
+  const last = page[ACTIVITY_PAGE - 1];
+  return { rows: await resolveHrefs(db, page), nextBefore: rows.length > ACTIVITY_PAGE ? `${last.created_at}|${last.id}` : null };
 }
