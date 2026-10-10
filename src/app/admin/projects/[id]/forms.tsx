@@ -13,7 +13,7 @@ export function NewDeliverableForm({ projectId, tasks }: { projectId: string; ta
   const [state, action, pending] = useActionState<ActionResult, FormData>(createDeliverable.bind(null, projectId), { error: null });
   return (
     <details className="rounded-lg border border-line p-4">
-      <summary className="cursor-pointer font-semibold text-royal">New deliverable</summary>
+      <summary className="cursor-pointer font-semibold text-link">New deliverable</summary>
       <form action={action} className="mt-4 space-y-4">
         <Field label="Title" htmlFor="title"><Input id="title" name="title" required /></Field>
         <Field label="Description" htmlFor="description"><Textarea id="description" name="description" /></Field>
@@ -41,7 +41,7 @@ function EditDeliverableForm({ d, tasks }: { d: DeliverableRow; tasks: { id: str
   const [state, action, pending] = useActionState<ActionResult, FormData>(editDeliverable.bind(null, d.id), { error: null });
   return (
     <details className="mt-4 rounded-lg border border-line p-4">
-      <summary className="cursor-pointer text-sm font-semibold text-royal">Edit details</summary>
+      <summary className="cursor-pointer text-sm font-semibold text-link">Edit details</summary>
       <form action={action} className="mt-4 space-y-4">
         <Field label="Title" htmlFor={`title-${d.id}`}><Input id={`title-${d.id}`} name="title" required defaultValue={d.title} /></Field>
         <Field label="Description" htmlFor={`description-${d.id}`}><Textarea id={`description-${d.id}`} name="description" defaultValue={d.description ?? ""} /></Field>
@@ -70,7 +70,7 @@ export function DeliverableCard({ deliverable: d, tasks }: { deliverable: Delive
       </div>
       {d.description ? <p className="mt-2 whitespace-pre-line text-sm text-muted">{d.description}</p> : null}
       <p className="mt-2 text-sm">
-        {d.file_path ? "File attached" : "No file"}{d.link_url ? <> · <a className="font-semibold text-royal" href={d.link_url} target="_blank" rel="noreferrer">Link</a></> : null}
+        {d.file_path ? "File attached" : "No file"}{d.link_url ? <> · <a className="font-semibold text-link" href={d.link_url} target="_blank" rel="noreferrer">Link</a></> : null}
       </p>
       {d.status === "changes_requested" && d.client_feedback ? (
         <blockquote className="mt-3 border-l-2 border-gold pl-3 text-sm whitespace-pre-line">{d.client_feedback}</blockquote>
@@ -127,7 +127,7 @@ export function ProjectFiles({ projectId, files }: { projectId: string; files: F
 export function RequestRowActions({ id, status }: { id: string; status: "open" | "done" }) {
   const { pending, run } = useAction();
   return (
-    <button type="button" className="mt-2 text-sm font-semibold text-royal" disabled={pending}
+    <button type="button" className="mt-2 text-sm font-semibold text-link" disabled={pending}
       onClick={() => run(() => setRequestStatus(id, status === "open" ? "done" : "open"))}>
       {status === "open" ? "Mark done" : "Reopen"}
     </button>

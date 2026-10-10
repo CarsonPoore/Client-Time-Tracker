@@ -34,7 +34,7 @@ export default async function AdminDashboard() {
                     <li key={r.id} className="py-3">
                       <p className="text-xs font-semibold uppercase tracking-widest text-muted">{client?.name} · {r.kind}</p>
                       <p className="mt-1 whitespace-pre-line">{r.body}</p>
-                      {r.project_id ? <Link className="text-sm font-semibold text-royal" href={`/admin/projects/${r.project_id}`}>Open project</Link> : null}
+                      {r.project_id ? <Link className="text-sm font-semibold text-link" href={`/admin/projects/${r.project_id}`}>Open project</Link> : null}
                     </li>
                   );
                 })}
@@ -50,7 +50,7 @@ export default async function AdminDashboard() {
                   return (
                     <li key={d.id} className="flex items-center justify-between gap-4 py-3">
                       <div>
-                        <Link href={`/admin/projects/${project.id}`} className="font-semibold hover:text-royal">{d.title}</Link>
+                        <Link href={`/admin/projects/${project.id}`} className="font-semibold hover:text-link">{d.title}</Link>
                         <p className="text-sm text-muted">{project.client.name} · {project.name} · sent {formatDate(d.published_at)}</p>
                       </div>
                       <StatusPill status="awaiting_approval" />

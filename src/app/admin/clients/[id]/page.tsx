@@ -29,7 +29,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             <ul className="divide-y divide-line">
               {projects.map((p) => (
                 <li key={p.id} className="flex items-center justify-between py-3">
-                  <Link href={`/admin/projects/${p.id}`} className={`font-semibold hover:text-royal ${p.archived ? "text-muted line-through" : ""}`}>{p.name}</Link>
+                  <Link href={`/admin/projects/${p.id}`} className={`font-semibold hover:text-link ${p.archived ? "text-muted line-through" : ""}`}>{p.name}</Link>
                   <span className="text-sm text-muted">{p.due_date ? `Due ${formatDate(p.due_date)}` : ""}</span>
                 </li>
               ))}

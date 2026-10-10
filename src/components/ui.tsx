@@ -24,10 +24,10 @@ export function Card({ className = "", ...props }: ComponentProps<"div">) {
 
 const pillTones: Record<string, string> = {
   draft: "bg-surface-2 text-muted",
-  awaiting_approval: "bg-royal/10 text-royal dark:text-blue-300",
+  awaiting_approval: "bg-royal/10 text-link",
   approved: "bg-ok/15 text-ok",
   changes_requested: "bg-warn/15 text-warn",
-  open: "bg-royal/10 text-royal dark:text-blue-300",
+  open: "bg-royal/10 text-link",
   done: "bg-ok/15 text-ok",
 };
 const pillLabels: Record<string, string> = {

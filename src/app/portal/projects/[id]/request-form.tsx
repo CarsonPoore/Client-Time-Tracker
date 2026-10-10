@@ -1,7 +1,7 @@
 "use client";
-import { useActionState, useTransition } from "react";
+import { useActionState } from "react";
 import { Button, FormMessage, Textarea } from "@/components/ui";
-import { fileDownloadUrl, submitRequest, type PortalResult } from "../../actions";
+import { submitRequest, type PortalResult } from "../../actions";
 
 export function RequestForm({ projectId, deliverableId }: { projectId: string; deliverableId?: string }) {
   const [state, action, pending] = useActionState<PortalResult, FormData>(submitRequest, { error: null });
@@ -18,15 +18,5 @@ export function RequestForm({ projectId, deliverableId }: { projectId: string; d
       <FormMessage error={state.error} success={state.message} />
       <Button type="submit" disabled={pending}>{pending ? "Sending…" : "Send"}</Button>
     </form>
-  );
-}
-
-export function FileLink({ id, name }: { id: string; name: string }) {
-  const [pending, start] = useTransition();
-  return (
-    <button type="button" disabled={pending} className="text-left font-semibold text-royal hover:underline"
-      onClick={() => start(async () => { const url = await fileDownloadUrl(id); if (url) window.open(url, "_blank", "noopener"); })}>
-      {pending ? "Preparing…" : name}
-    </button>
   );
 }

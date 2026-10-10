@@ -15,7 +15,7 @@ export default function ForgotPasswordPage() {
           <Input id="email" name="email" type="email" autoComplete="email" required />
         </Field>
         <Button type="submit" className="w-full" disabled={pending}>Send reset link</Button>
-        <Link href="/login" className="block text-sm font-semibold text-royal">Back to sign in</Link>
+        <Link href="/login" className="block text-sm font-semibold text-link">Back to sign in</Link>
       </form>
     </div>
   );

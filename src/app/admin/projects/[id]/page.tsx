@@ -25,7 +25,7 @@ export default async function AdminProjectPage({ params }: { params: Promise<{ i
 
   return (
     <>
-      <p className="mb-2 text-sm"><Link className="font-semibold text-royal" href={`/admin/clients/${client.id}`}>{client.name}</Link></p>
+      <p className="mb-2 text-sm"><Link className="font-semibold text-link" href={`/admin/clients/${client.id}`}>{client.name}</Link></p>
       <PageHeader eyebrow="Project" title={project.name} />
       <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
         <div className="space-y-6">
@@ -78,7 +78,7 @@ export default async function AdminProjectPage({ params }: { params: Promise<{ i
             <ul className="space-y-2 text-sm">
               {taskRows.map((t) => (
                 <li key={t.id} className="flex items-center justify-between gap-2">
-                  <a href={t.clickup_url ?? "#"} target="_blank" rel="noreferrer" className="hover:text-royal">{t.name}</a>
+                  <a href={t.clickup_url ?? "#"} target="_blank" rel="noreferrer" className="hover:text-link">{t.name}</a>
                   <span className="flex items-center gap-2">
                     {t.client_visible ? <span className="text-xs font-semibold text-ok">Visible</span> : <span className="text-xs text-muted">Internal</span>}
                     <StatusPill status={t.status} color={t.status_color} />

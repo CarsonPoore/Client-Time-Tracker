@@ -44,7 +44,7 @@ function LoginForm() {
             </Field>
             <Button type="submit" className="w-full" disabled={pending}>{pending ? "Signing in…" : "Sign in"}</Button>
           </form>
-          <Link href="/forgot-password" className="block text-sm font-semibold text-royal">Forgot your password?</Link>
+          <Link href="/forgot-password" className="block text-sm font-semibold text-link">Forgot your password?</Link>
           <div className="border-t border-line pt-6">
             <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted">Carson Poore Consulting team</p>
             <GoogleButton />

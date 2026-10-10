@@ -50,7 +50,7 @@ export default async function PortalHome() {
                       {p.status ? `${p.status} · ` : ""}{p.due_date ? `Due ${formatDate(p.due_date)}` : "No due date"}
                     </p>
                     {awaitingByProject.get(p.id) ? (
-                      <p className="mt-3 text-sm font-semibold text-royal">{awaitingByProject.get(p.id)} awaiting your approval</p>
+                      <p className="mt-3 text-sm font-semibold text-link">{awaitingByProject.get(p.id)} awaiting your approval</p>
                     ) : null}
                   </Card>
                 </Link>

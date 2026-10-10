@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Card, EmptyState, PageHeader, StatusPill, formatDate } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
 import type { DeliverableRow, FileRow, TaskRow, UpdateRow } from "@/lib/types";
-import { FileLink, RequestForm } from "./request-form";
+import { RequestForm } from "./request-form";
 
 export default async function PortalProject({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,7 +22,7 @@ export default async function PortalProject({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <p className="mb-2 text-sm"><Link href="/portal" className="font-semibold text-royal">← Overview</Link></p>
+      <p className="mb-2 text-sm"><Link href="/portal" className="font-semibold text-link">← Overview</Link></p>
       <PageHeader eyebrow={project.due_date ? `Due ${formatDate(project.due_date)}` : "Project"} title={project.name} />
       <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
         <div className="space-y-6">
@@ -32,7 +32,7 @@ export default async function PortalProject({ params }: { params: Promise<{ id: 
               <ul className="divide-y divide-line">
                 {(deliverables.data as DeliverableRow[]).map((d) => (
                   <li key={d.id} className="flex items-center justify-between gap-4 py-3">
-                    <Link href={`/portal/deliverables/${d.id}`} className="font-semibold hover:text-royal">{d.title}</Link>
+                    <Link href={`/portal/deliverables/${d.id}`} className="font-semibold hover:text-link">{d.title}</Link>
                     <StatusPill status={d.status} />
                   </li>
                 ))}
@@ -81,7 +81,7 @@ export default async function PortalProject({ params }: { params: Promise<{ id: 
           <Card>
             <h2 className="mb-4 text-lg font-bold">Files</h2>
             {(files.data as FileRow[] | null)?.length ? (
-              <ul className="space-y-2">{(files.data as FileRow[]).map((f) => <li key={f.id}><FileLink id={f.id} name={f.name} /></li>)}</ul>
+              <ul className="space-y-2">{(files.data as FileRow[]).map((f) => <li key={f.id}><a href={`/portal/files/${f.id}`} target="_blank" rel="noreferrer" className="font-semibold text-link hover:underline">{f.name}</a></li>)}</ul>
             ) : <EmptyState title="No files yet" />}
           </Card>
         </div>

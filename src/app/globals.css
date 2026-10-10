@@ -21,6 +21,7 @@
   --warn: #9a6400;
   --danger: #b42318;
   --focus: #1e4fd8;
+  --link: #1e4fd8;
   color-scheme: light;
 }
 
@@ -36,6 +37,7 @@
     --warn: #e0a030;
     --danger: #ff8a7a;
     --focus: #8fb0ff;
+    --link: #8fb0ff;
     color-scheme: dark;
   }
 }
@@ -51,6 +53,7 @@
   --color-warn: var(--warn);
   --color-danger: var(--danger);
   --color-focus: var(--focus);
+  --color-link: var(--link);
 }
 
 body {

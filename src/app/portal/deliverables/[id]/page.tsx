@@ -20,7 +20,7 @@ export default async function PortalDeliverable({ params }: { params: Promise<{ 
 
   return (
     <>
-      <p className="mb-2 text-sm"><Link href={`/portal/projects/${d.project.id}`} className="font-semibold text-royal">← {d.project.name}</Link></p>
+      <p className="mb-2 text-sm"><Link href={`/portal/projects/${d.project.id}`} className="font-semibold text-link">← {d.project.name}</Link></p>
       <PageHeader eyebrow="Deliverable" title={d.title} actions={<StatusPill status={d.status} />} />
       <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
         <Card className="space-y-4">
@@ -29,8 +29,8 @@ export default async function PortalDeliverable({ params }: { params: Promise<{ 
           {fileUrl && isImage ? <img src={fileUrl} alt={d.title} className="w-full rounded-lg border border-line" /> : null}
           {fileUrl && isPdf ? <iframe src={fileUrl} title={d.title} className="h-[70vh] w-full rounded-lg border border-line" /> : null}
           <div className="flex flex-wrap gap-4 text-sm font-semibold">
-            {fileUrl ? <a href={fileUrl} target="_blank" rel="noreferrer" className="text-royal">Download file</a> : null}
-            {safeLink ? <a href={safeLink} target="_blank" rel="noreferrer" className="text-royal">Open link</a> : null}
+            {fileUrl ? <a href={fileUrl} target="_blank" rel="noreferrer" className="text-link">Download file</a> : null}
+            {safeLink ? <a href={safeLink} target="_blank" rel="noreferrer" className="text-link">Open link</a> : null}
           </div>
         </Card>
         <Card>

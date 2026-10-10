@@ -3,7 +3,6 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireClient } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { signedDownloadUrl } from "@/lib/storage";
 import { notifyAdminDecision, notifyAdminRequest, postDecisionToClickUp } from "@/lib/email/notify";
 import { decisionErrorMessage, parseDecision } from "./decision";
 
@@ -45,12 +44,4 @@ export async function submitRequest(_prev: PortalResult, form: FormData): Promis
   await notifyAdminRequest(data.id).catch(() => undefined);
   if (parsed.data.project_id) revalidatePath(`/portal/projects/${parsed.data.project_id}`);
   return { error: null, message: "Sent. Carson will follow up." };
-}
-
-export async function fileDownloadUrl(fileId: string): Promise<string | null> {
-  await requireClient();
-  const supabase = await createClient();
-  // Inner join on projects: RLS limits projects to non-archived ones the client can see.
-  const { data } = await supabase.from("files").select("storage_path, project:projects!inner(id)").eq("id", fileId).maybeSingle();
-  return data ? signedDownloadUrl(data.storage_path, 300) : null;
 }
