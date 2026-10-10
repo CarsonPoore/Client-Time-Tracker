@@ -34,3 +34,13 @@ describe("buildStoragePath", () => {
     }
   });
 });
+
+describe("buildStoragePath comments", () => {
+  it("builds comment paths under the comment id", () => {
+    const p = buildStoragePath("8f0e2f5e-6b8a-4d3b-9b1a-2a7c1d9e0f11", "Screen Shot.PNG", "comments", "abc", "0b9f4c1e-1111-4222-8333-444455556666");
+    expect(p).toBe("8f0e2f5e-6b8a-4d3b-9b1a-2a7c1d9e0f11/comments/0b9f4c1e-1111-4222-8333-444455556666/abc-screen-shot.png");
+  });
+  it("requires a uuid comment id for comment paths", () => {
+    expect(() => buildStoragePath("8f0e2f5e-6b8a-4d3b-9b1a-2a7c1d9e0f11", "a.png", "comments", "abc", "../x")).toThrow();
+  });
+});
