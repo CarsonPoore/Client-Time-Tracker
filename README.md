@@ -14,10 +14,10 @@ npm run test:e2e             # needs E2E_* env, see E2E below
 
 ## Go-live checklist
 
-1. **Supabase project** `uzmbzvnswhhdtsmdbelg`
-   - **Pre-check:** in the Table Editor confirm the `public` schema has no existing tables named `clients`, `profiles`, `projects`, `tasks`, `deliverables`, `updates`, `files`, `requests`, `clickup_events`, `sync_runs`, `digest_sends`, `app_settings`. If any exist, stop and rename or back them up first.
-   - SQL editor: run `supabase/migrations/0001_schema.sql`, then `0002_access.sql`, then `0003_release1_fixes.sql`.
-   - Google Cloud: configure the OAuth consent screen, then create an OAuth client whose authorized redirect URI is the Supabase callback `https://uzmbzvnswhhdtsmdbelg.supabase.co/auth/v1/callback`.
+1. **Supabase project** `cpc-os` (`sunhynwcliuxkrebamfp`, Copperleaf Marketing org, us-east-2)
+   - Migrations `0001`–`0004` in `supabase/migrations/` are already applied (2026-10-10). New migrations go in the same folder and run in order; any new table needs `revoke all on <table> from anon;` because Supabase grants anon by default.
+   - API keys: Project Settings → API. Use the project URL, the anon (or publishable) key and the service_role key for the env vars below.
+   - Google Cloud: configure the OAuth consent screen, then create an OAuth client whose authorized redirect URI is the Supabase callback `https://sunhynwcliuxkrebamfp.supabase.co/auth/v1/callback`.
    - Auth → Providers: enable Google with that client ID/secret. Enable Email. **Leave "Allow new users to sign up" ON for now** (see step 6).
    - Auth → URL configuration: Site URL `https://os.carsonpoore.com`; redirect URLs `https://os.carsonpoore.com/**` and a preview wildcard such as `https://*-<team>.vercel.app/**`.
    - Auth → Email templates: set the **Invite user** link to `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=invite` and the **Reset password** link to `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`. The OS passes `APP_URL/auth/confirm` as the redirect, so `{{ .RedirectTo }}` makes links work on the preview as well as production (do not use `{{ .SiteURL }}`). Invite must use `type=invite`, Reset Password must use `type=recovery`. "Resend sign-in link" in the OS sends the recovery email. Brand the copy.
