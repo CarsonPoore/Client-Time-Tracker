@@ -29,5 +29,10 @@ describe("safeNext", () => {
     expect(safeNext("//evil.com")).toBeNull();
     expect(safeNext("https://evil.com")).toBeNull();
     expect(safeNext(null)).toBeNull();
+    expect(safeNext("/\\evil.com")).toBeNull();
+    expect(safeNext("/\t/evil.com")).toBeNull();
+    expect(safeNext("/a\nb")).toBeNull();
+    expect(safeNext("/a\\b")).toBeNull();
+    expect(safeNext("/%0a")).toBe("/%0a");
   });
 });

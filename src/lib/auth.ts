@@ -23,7 +23,8 @@ export function isAdminEmail(email: string | null | undefined, allow: string[]):
 }
 
 export function safeNext(next: string | null): string | null {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return null;
+  if (!next || !next.startsWith("/")) return null;
+  if (/^\/[/\\]/.test(next) || next.includes("\\") || /[\x00-\x1f\x7f]/.test(next)) return null;
   return next;
 }
 
