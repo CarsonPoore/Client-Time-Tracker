@@ -157,7 +157,8 @@ create policy client_insert on public.comment_attachments for insert to authenti
     where c.id = comment_id
       and c.author_id = auth.uid()
       and public.version_client_id(c.version_id) = public.auth_client_id()
-      and storage_path like d.project_id::text || '/comments/' || c.id::text || '/%'));
+      and storage_path ~ ('^' || d.project_id::text || '/comments/' || c.id::text || '/[^/]+$')
+      and storage_path not like '%..%'));
 
 grant select, insert, update, delete on public.deliverable_versions, public.deliverable_comments,
   public.comment_attachments, public.client_activity to authenticated;

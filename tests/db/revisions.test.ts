@@ -142,6 +142,15 @@ describe("rls", () => {
     await expect(asUser(db, ALICE, (tx) => tx.query(
       `insert into comment_attachments (comment_id, storage_path, name) values ($1, $2, 'b.png')`,
       [mine, `${BRAND}/comments/${mine}/1-b.png`]))).rejects.toThrow();
+    await expect(asUser(db, ALICE, (tx) => tx.query(
+      `insert into comment_attachments (comment_id, storage_path, name) values ($1, $2, 'd.png')`,
+      [mine, `${SITE}/comments/${mine}/../../x/d.png`]))).rejects.toThrow();
+    await expect(asUser(db, ALICE, (tx) => tx.query(
+      `insert into comment_attachments (comment_id, storage_path, name) values ($1, $2, 'e.png')`,
+      [mine, `${SITE}/comments/${mine}/a/b.png`]))).rejects.toThrow();
+    await expect(asUser(db, ALICE, (tx) => tx.query(
+      `insert into comment_attachments (comment_id, storage_path, name) values ($1, $2, 'f.png')`,
+      [mine, `${SITE}/comments/${mine}/..`]))).rejects.toThrow();
     const adminComment = (await asUser(db, ADMIN, (tx) => tx.query<{ id: string }>(
       `insert into deliverable_comments (version_id, author_id, author_role, body) values ($1, $2, 'admin', 'ok') returning id`, [v, ADMIN]))).rows[0].id;
     await expect(asUser(db, ALICE, (tx) => tx.query(
