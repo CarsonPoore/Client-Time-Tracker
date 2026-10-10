@@ -1,4 +1,4 @@
-import type { DeliverableRow, FileRow, TaskRow, UpdateRow } from "@/lib/types";
+import type { CommentRow, DeliverableRow, FileRow, TaskRow, UpdateRow, VersionRow } from "@/lib/types";
 
 /**
  * The one place that decides what a client sees. The portal queries through the client's own session
@@ -66,14 +66,53 @@ export async function loadPortalProject(db: PortalDb, clientId: string, projectI
   return { project, tasks: tasks.data ?? [], deliverables: deliverables.data ?? [], updates: updates.data ?? [], files: files.data ?? [] };
 }
 
-export type PortalDeliverable = DeliverableRow & { project: { id: string; name: string } };
+export interface DeliverableThread {
+  deliverable: DeliverableRow & { project: { id: string; name: string; client_id: string; archived?: boolean } };
+  versions: VersionRow[];                 // ascending by number; drafts excluded unless includeDrafts
+  comments: Record<string, CommentRow[]>; // keyed by version_id, ascending by created_at
+  names: Record<string, string>;          // user id -> full_name || email
+}
 
-export async function loadPortalDeliverable(db: PortalDb, clientId: string, id: string): Promise<PortalDeliverable | null> {
-  const { data } = (await db.from("deliverables").select("*").eq("id", id).neq("status", "draft").maybeSingle()) as Result<DeliverableRow>;
-  if (!data) return null;
-  const project = await ownProject(db, clientId, data.project_id);
-  if (!project) return null;
-  return { ...data, project: { id: project.id, name: project.name } };
+/**
+ * Names: a client's RLS only exposes their own profile row, so pass an admin `namesDb` from server code.
+ * In a client context (includeDrafts false) names are limited to profiles of this deliverable's client, so
+ * admin authors get no entry (the UI shows them as "Carson"). In an admin context all authors are resolved.
+ */
+export async function loadDeliverableThread(
+  db: PortalDb, id: string, opts: { includeDrafts: boolean; namesDb?: PortalDb },
+): Promise<DeliverableThread | null> {
+  const { data: deliverable } = await db.from("deliverables")
+    .select("*, project:projects(id, name, client_id, archived)").eq("id", id).maybeSingle();
+  if (!deliverable) return null;
+  let vq = db.from("deliverable_versions").select("*").eq("deliverable_id", id);
+  if (!opts.includeDrafts) vq = vq.neq("status", "draft");
+  const { data: versions } = await vq.order("number", { ascending: true });
+  const vs: VersionRow[] = versions ?? [];
+  const vids = vs.map((v) => v.id);
+  const { data: raw } = vids.length
+    ? await db.from("deliverable_comments").select("*, comment_attachments(*)").in("version_id", vids).order("created_at", { ascending: true })
+    : { data: [] };
+  const comments: Record<string, CommentRow[]> = Object.fromEntries(vids.map((v) => [v, []]));
+  for (const c of raw ?? []) comments[c.version_id]?.push({ ...c, attachments: c.comment_attachments ?? [] });
+  const userIds = [...new Set([
+    ...(raw ?? []).map((c: CommentRow) => c.author_id),
+    ...vs.map((v) => v.decided_by),
+  ].filter((x): x is string => !!x))];
+  let names: Record<string, string> = {};
+  if (userIds.length) {
+    let pq = (opts.namesDb ?? db).from("profiles").select("user_id, full_name, email").in("user_id", userIds);
+    if (!opts.includeDrafts) pq = pq.eq("client_id", deliverable.project.client_id);
+    const { data: people } = await pq;
+    names = Object.fromEntries((people ?? []).map((p: { user_id: string; full_name: string | null; email: string }) => [p.user_id, p.full_name || p.email]));
+  }
+  return { deliverable, versions: vs, comments, names };
+}
+
+export async function loadPortalDeliverable(db: PortalDb, clientId: string, id: string, namesDb?: PortalDb): Promise<DeliverableThread | null> {
+  const t = await loadDeliverableThread(db, id, { includeDrafts: false, namesDb });
+  const p = t?.deliverable.project;
+  if (!t || !p || p.client_id !== clientId || p.archived || t.deliverable.status === "draft" || !t.versions.length) return null;
+  return t;
 }
 
 export async function loadPortalFilePath(db: PortalDb, clientId: string, id: string): Promise<string | null> {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadPortalDeliverable, loadPortalFilePath, loadPortalHome, loadPortalProject, type PortalDb } from "@/lib/portal-data";
+import { loadDeliverableThread, loadPortalDeliverable, loadPortalFilePath, loadPortalHome, loadPortalProject, type PortalDb } from "@/lib/portal-data";
 
 type Call = [string, ...unknown[]];
 
@@ -108,18 +108,64 @@ describe("portal data loader (client visibility)", () => {
     expect(await loadPortalProject(db, A, "pa-old", NOW)).toBeNull();
   });
 
-  it("deliverable: hides drafts, other clients' and archived projects' deliverables", async () => {
-    const { db } = fixture();
-    expect((await loadPortalDeliverable(db, A, "d1"))?.project).toEqual({ id: "pa", name: "Site" });
-    expect(await loadPortalDeliverable(db, A, "d2")).toBeNull();
-    expect(await loadPortalDeliverable(db, A, "d3")).toBeNull();
-    expect(await loadPortalDeliverable(db, A, "d4")).toBeNull();
-  });
-
   it("files: only from the client's non-archived projects", async () => {
     const { db } = fixture();
     expect(await loadPortalFilePath(db, A, "f1")).toBe("a/f1");
     expect(await loadPortalFilePath(db, A, "f2")).toBeNull();
     expect(await loadPortalFilePath(db, A, "f3")).toBeNull();
+  });
+});
+
+describe("loadDeliverableThread", () => {
+  const proj = { id: "p1", name: "Site", client_id: "c1", archived: false };
+  const base = () => ({
+    deliverables: [{ id: "d1", project_id: "p1", title: "Logo", status: "awaiting_approval", current_version_id: "v2", revision_limit: 3, project: proj }],
+    deliverable_versions: [
+      { id: "v1", deliverable_id: "d1", number: 1, status: "changes_requested", decided_by: "u1" },
+      { id: "v2", deliverable_id: "d1", number: 2, status: "awaiting_approval", decided_by: null },
+      { id: "v3", deliverable_id: "d1", number: 3, status: "draft", decided_by: null },
+    ],
+    deliverable_comments: [
+      { id: "c1", version_id: "v1", author_id: "u1", body: "bluer", kind: "decision", created_at: "2026-10-02", comment_attachments: [] },
+      { id: "c2", version_id: "v2", author_id: "admin1", body: "nice", kind: "comment", created_at: "2026-10-05", comment_attachments: [{ id: "a1", name: "x.png" }] },
+    ],
+    profiles: [
+      { user_id: "u1", client_id: "c1", full_name: null, email: "dana@x.com" },
+      { user_id: "admin1", client_id: null, full_name: "Carson", email: "c@y.com" },
+    ],
+  });
+
+  it("excludes draft versions for clients, groups comments by version, restricts names to the client", async () => {
+    const { db } = fakeDb(base());
+    const t = await loadPortalDeliverable(db, "c1", "d1");
+    expect(t!.versions.map((v) => v.number)).toEqual([1, 2]);
+    expect(t!.comments.v1.map((c) => c.body)).toEqual(["bluer"]);
+    expect(t!.comments.v2[0].attachments).toHaveLength(1);
+    expect(t!.names).toEqual({ u1: "dana@x.com" });
+  });
+
+  it("admin view includes drafts and resolves admin names", async () => {
+    const { db } = fakeDb(base());
+    const t = await loadDeliverableThread(db, "d1", { includeDrafts: true });
+    expect(t!.versions.map((v) => v.number)).toEqual([1, 2, 3]);
+    expect(t!.names).toEqual({ u1: "dana@x.com", admin1: "Carson" });
+  });
+
+  it("queries names with namesDb when given", async () => {
+    const { db } = fakeDb({ ...base(), profiles: [] });
+    const { db: namesDb } = fakeDb(base());
+    const t = await loadPortalDeliverable(db, "c1", "d1", namesDb);
+    expect(t!.names.u1).toBe("dana@x.com");
+  });
+
+  it("returns null for another client's, archived or draft deliverable", async () => {
+    const mk = (over: Record<string, unknown>, projOver: Record<string, unknown> = {}) => {
+      const b = base();
+      b.deliverables = [{ ...b.deliverables[0], ...over, project: { ...proj, ...projOver } }];
+      return fakeDb(b).db;
+    };
+    expect(await loadPortalDeliverable(mk({}, { client_id: "c2" }), "c1", "d1")).toBeNull();
+    expect(await loadPortalDeliverable(mk({}, { archived: true }), "c1", "d1")).toBeNull();
+    expect(await loadPortalDeliverable(mk({ status: "draft" }), "c1", "d1")).toBeNull();
   });
 });

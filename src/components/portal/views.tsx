@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card, EmptyState, LinkButton, PageHeader, StatusPill, formatDate } from "@/components/ui";
-import type { PortalDeliverable, PortalHours, loadPortalHome, loadPortalProject } from "@/lib/portal-data";
+import type { DeliverableThread, PortalHours, loadPortalHome, loadPortalProject } from "@/lib/portal-data";
 import { formatHours } from "@/lib/time";
 import { DecisionForm } from "./decision-form";
 import { RequestForm } from "./request-form";
@@ -178,10 +178,14 @@ export function PortalProjectView({ data, mode }: { data: NonNullable<Awaited<Re
   );
 }
 
-export function PortalDeliverableView({ d, fileUrl, mode }: { d: PortalDeliverable; fileUrl: string | null; mode: PortalViewMode }) {
-  const isImage = d.file_path ? /\.(png|jpe?g|gif|webp|svg)$/i.test(d.file_path) : false;
-  const isPdf = d.file_path ? /\.pdf$/i.test(d.file_path) : false;
-  const safeLink = d.link_url && /^https?:\/\//i.test(d.link_url) ? d.link_url : null;
+export function PortalDeliverableView({ t, fileUrl, mode }: { t: DeliverableThread; fileUrl: string | null; mode: PortalViewMode }) {
+  // Interim (Task 9 replaces this): show the current version, falling back to the last one.
+  const d = t.deliverable;
+  const v = t.versions.find((x) => x.id === d.current_version_id) ?? t.versions[t.versions.length - 1];
+  const feedback = [...(t.comments[v?.id ?? ""] ?? [])].reverse().find((c) => c.kind === "decision")?.body ?? null;
+  const isImage = v?.file_path ? /\.(png|jpe?g|gif|webp|svg)$/i.test(v.file_path) : false;
+  const isPdf = v?.file_path ? /\.pdf$/i.test(v.file_path) : false;
+  const safeLink = v?.link_url && /^https?:\/\//i.test(v.link_url) ? v.link_url : null;
 
   return (
     <>
@@ -204,8 +208,8 @@ export function PortalDeliverableView({ d, fileUrl, mode }: { d: PortalDeliverab
           ) : (
             <div>
               <p className="font-bold">{d.status === "approved" ? "You approved this" : "You requested changes"}</p>
-              <p className="text-sm text-muted">{formatDate(d.decided_at)}</p>
-              {d.client_feedback ? <blockquote className="mt-3 border-l-2 border-gold pl-3 whitespace-pre-line">{d.client_feedback}</blockquote> : null}
+              <p className="text-sm text-muted">{formatDate(v?.decided_at ?? null)}</p>
+              {feedback ? <blockquote className="mt-3 border-l-2 border-gold pl-3 whitespace-pre-line">{feedback}</blockquote> : null}
             </div>
           )}
         </Card>
