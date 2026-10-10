@@ -20,14 +20,27 @@ create schema storage;
 create table storage.buckets (id text primary key, name text, public boolean);
 `;
 
-export async function createDb(): Promise<PGlite> {
+function migrationFiles(): string[] {
+  const dir = join(process.cwd(), "supabase/migrations");
+  return readdirSync(dir).filter((f) => f.endsWith(".sql")).sort().map((f) => join(dir, f));
+}
+
+export async function createDb(opts: { before?: string } = {}): Promise<PGlite> {
   const db = new PGlite();
   await db.exec(SUPABASE_STUB);
-  const dir = join(process.cwd(), "supabase/migrations");
-  for (const file of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
-    await db.exec(readFileSync(join(dir, file), "utf8"));
+  for (const file of migrationFiles()) {
+    if (opts.before && file.split("/").pop()!.startsWith(opts.before)) break;
+    await db.exec(readFileSync(file, "utf8"));
   }
   return db;
+}
+
+export async function applyMigrationsFrom(db: PGlite, prefix: string): Promise<void> {
+  let on = false;
+  for (const file of migrationFiles()) {
+    if (file.split("/").pop()!.startsWith(prefix)) on = true;
+    if (on) await db.exec(readFileSync(file, "utf8"));
+  }
 }
 
 export async function asUser<T>(
