@@ -5,21 +5,32 @@ import { ClickUpClient } from "@/lib/clickup/client";
 import { sendEmail } from "./send";
 import { adminDecisionEmail, adminRequestEmail, clientPublishedEmail } from "./templates";
 
+type CurrentVersion = { number: number; file_path: string | null; link_url: string | null };
+
+// deliverables <-> deliverable_versions has two FKs, so read the current version in a second query
+// rather than relying on an embed hint.
 async function loadDeliverable(id: string) {
-  const { data } = await createAdminClient().from("deliverables")
-    .select("id, title, status, client_feedback, clickup_task_id, project:projects(id, name, clickup_list_id, client:clients(id, name, contact_email, portal_user_id))")
+  const admin = createAdminClient();
+  const { data } = await admin.from("deliverables")
+    .select("id, title, status, client_feedback, clickup_task_id, current_version_id, project:projects(id, name, clickup_list_id, client:clients(id, name, contact_email, portal_user_id))")
     .eq("id", id).single();
-  return data as unknown as {
+  if (!data) return null;
+  let current_version: CurrentVersion | null = null;
+  if (data.current_version_id) {
+    const { data: v } = await admin.from("deliverable_versions").select("number, file_path, link_url").eq("id", data.current_version_id).maybeSingle();
+    current_version = (v as CurrentVersion | null) ?? null;
+  }
+  return { ...data, current_version } as unknown as {
     id: string; title: string; status: "approved" | "changes_requested" | "awaiting_approval" | "draft";
-    client_feedback: string | null; clickup_task_id: string | null;
+    client_feedback: string | null; clickup_task_id: string | null; current_version: CurrentVersion | null;
     project: { id: string; name: string; clickup_list_id: string | null; client: { id: string; name: string; contact_email: string | null; portal_user_id: string | null } };
-  } | null;
+  };
 }
 
 export async function notifyClientDeliverablePublished(id: string): Promise<void> {
   const d = await loadDeliverable(id);
   if (!d?.project.client.contact_email || !d.project.client.portal_user_id) return;
-  const email = clientPublishedEmail({ title: d.title, projectName: d.project.name, url: `${serverEnv().APP_URL}/portal/deliverables/${d.id}` });
+  const email = clientPublishedEmail({ title: d.title, projectName: d.project.name, versionNumber: d.current_version?.number ?? null, url: `${serverEnv().APP_URL}/portal/deliverables/${d.id}` });
   await sendEmail({ to: d.project.client.contact_email, ...email });
 }
 

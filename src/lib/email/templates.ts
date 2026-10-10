@@ -54,9 +54,9 @@ export function adminRequestEmail(i: { clientName: string; kind: "comment" | "re
   };
 }
 
-export function clientPublishedEmail(i: { title: string; projectName: string; url: string }) {
+export function clientPublishedEmail(i: { title: string; projectName: string; url: string; versionNumber?: number | null }) {
   return {
-    subject: `Ready for your review: ${i.title}`,
+    subject: `Ready for your review: ${i.title}${i.versionNumber && i.versionNumber > 1 ? ` (v${i.versionNumber})` : ""}`,
     ...renderEmail({
       preheader: `${i.title} is ready for your review.`,
       heading: "Ready for your review",

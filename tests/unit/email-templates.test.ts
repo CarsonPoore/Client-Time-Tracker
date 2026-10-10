@@ -32,3 +32,11 @@ describe("email templates", () => {
     expect(text).toContain("Homepage");
   });
 });
+
+describe("clientPublishedEmail version subject", () => {
+  it("adds v{n} only when n > 1", async () => {
+    const { clientPublishedEmail } = await import("@/lib/email/templates");
+    expect(clientPublishedEmail({ title: "Logo", projectName: "P", url: "https://x", versionNumber: 1 }).subject).toBe("Ready for your review: Logo");
+    expect(clientPublishedEmail({ title: "Logo", projectName: "P", url: "https://x", versionNumber: 3 }).subject).toBe("Ready for your review: Logo (v3)");
+  });
+});

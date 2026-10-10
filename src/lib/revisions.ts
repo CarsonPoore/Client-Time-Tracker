@@ -54,3 +54,18 @@ export function versionErrorMessage(message: string): string {
 export function isImagePath(path: string | null): boolean {
   return !!path && /\.(png|jpe?g|gif|webp)$/i.test(path);
 }
+
+/** Exact match for `<projectId>/comments/<commentId>/<one filename segment>`; rejects traversal and backslashes. */
+export function isCommentPath(path: string, projectId: string, commentId: string): boolean {
+  if (path.includes("..") || path.includes("\\")) return false;
+  const prefix = `${projectId}/comments/${commentId}/`;
+  if (!path.startsWith(prefix)) return false;
+  const rest = path.slice(prefix.length);
+  return rest.length > 0 && !rest.includes("/");
+}
+
+type CommentProjectRow = { version: { deliverable: { project_id: string } | null } | null } | null;
+export const COMMENT_PROJECT_SELECT = "id, author_id, version:deliverable_versions(deliverable:deliverables!deliverable_versions_deliverable_id_fkey(project_id))";
+export function commentProjectId(row: unknown): string | null {
+  return (row as CommentProjectRow)?.version?.deliverable?.project_id ?? null;
+}
