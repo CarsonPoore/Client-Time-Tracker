@@ -2,6 +2,10 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DigestContent } from "./templates";
 
+// Two FKs link deliverables and deliverable_versions, so the embed needs an explicit hint (else PGRST201).
+export const DIGEST_COMMENTS_SELECT =
+  "id, version:deliverable_versions!inner(status, deliverable:deliverables!deliverable_versions_deliverable_id_fkey!inner(id, title, project_id))";
+
 export async function loadDigest(clientId: string, clientName: string, now: Date): Promise<DigestContent> {
   const db = createAdminClient();
   const weekAgo = new Date(now.getTime() - 7 * 86400_000).toISOString();
@@ -20,7 +24,7 @@ export async function loadDigest(clientId: string, clientName: string, now: Date
     db.from("tasks").select("project_id, name, status").in("project_id", ids).eq("client_visible", true).eq("deleted", false).gte("status_changed_at", weekAgo),
     db.from("tasks").select("project_id, name, due_date").in("project_id", ids).eq("client_visible", true).eq("deleted", false).gte("due_date", today).lte("due_date", inAWeek).order("due_date"),
     db.from("deliverable_comments")
-      .select("id, version:deliverable_versions!inner(status, deliverable:deliverables!inner(id, title, project_id))")
+      .select(DIGEST_COMMENTS_SELECT)
       .eq("author_role", "admin").eq("kind", "comment").gte("created_at", weekAgo)
       .in("version.deliverable.project_id", ids).neq("version.status", "draft"),
   ]);
@@ -45,10 +49,12 @@ function one<T>(v: Rel<T>): T | null {
 }
 
 type CommentHit = { version: Rel<{ status: string; deliverable: Rel<{ id: string; title: string; project_id: string }> }> };
-function groupComments(rows: CommentHit[], name: Map<string, string>): DigestContent["comments"] {
+export function groupComments(rows: CommentHit[], name: Map<string, string>): DigestContent["comments"] {
   const out = new Map<string, DigestContent["comments"][number]>();
   for (const r of rows) {
-    const d = one(one(r.version)?.deliverable ?? null);
+    const v = one(r.version);
+    if (!v || v.status === "draft") continue; // backstop: the query already excludes drafts
+    const d = one(v.deliverable);
     if (!d || !name.has(d.project_id)) continue;
     const cur = out.get(d.id) ?? { deliverableId: d.id, title: d.title, project: name.get(d.project_id)!, count: 0 };
     cur.count += 1;
